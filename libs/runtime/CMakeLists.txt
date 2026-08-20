@@ -1,0 +1,6 @@
+add_library(fruitsim_runtime ${PROJECT_SOURCE_DIR}/src/runtime/cpu_backend.cpp)
+add_library(fruitsim::runtime ALIAS fruitsim_runtime)
+target_compile_features(fruitsim_runtime PUBLIC cxx_std_17)
+target_include_directories(fruitsim_runtime PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(fruitsim_runtime PUBLIC fruitsim::transport)
+fruitsim_set_warnings(fruitsim_runtime)

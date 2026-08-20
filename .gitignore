@@ -13,3 +13,10 @@ out/
 prac-raytracing/main
 prac-raytracing/image.ppm
 prac-raytracing/image.png
+
+results/
+data/synthetic/*.csv
+data/synthetic/*.manifest.json
+python/*.egg-info/
+python/**/__pycache__/
+*.joblib

@@ -1,0 +1,6 @@
+add_library(fruitsim_geometry ${PROJECT_SOURCE_DIR}/src/geometry/layered_sphere.cpp)
+add_library(fruitsim::geometry ALIAS fruitsim_geometry)
+target_compile_features(fruitsim_geometry PUBLIC cxx_std_17)
+target_include_directories(fruitsim_geometry PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(fruitsim_geometry PUBLIC fruitsim::core)
+fruitsim_set_warnings(fruitsim_geometry)

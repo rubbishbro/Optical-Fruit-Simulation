@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "session": {
+    "id": "refractive_mismatch_validation",
+    "cultivar": "synthetic phantom",
+    "dataset_id": "fresnel_validation_v1",
+    "source_type": "synthetic",
+    "transport_mode": "scalar",
+    "photons_per_wavelength": 10000,
+    "seed": 42,
+    "threads": 0,
+    "backend": "cpu",
+    "assumptions": ["Artificial refractive-index mismatch for boundary verification"]
+  },
+  "domain": {
+    "type": "layered_sphere",
+    "center_mm": [0, 0, 0],
+    "exterior_refractive_index": 1.0,
+    "layers_inner_to_outer": [
+      {"name": "core", "outer_radius_mm": 8},
+      {"name": "flesh", "outer_radius_mm": 39},
+      {"name": "skin", "outer_radius_mm": 40}
+    ]
+  },
+  "source": {"type": "pencil", "position_mm": [0, 0, -45], "direction": [0, 0, 1]},
+  "scoring": {"radial_bins": 20, "radial_max_mm": 40, "depth_bins": 40},
+  "spectra": [{"wavelength_nm": 800, "regions": {
+    "core": {"mu_a_mm_inv": 0.01, "mu_s_prime_mm_inv": 0.8, "g": 0.9, "refractive_index": 1.34},
+    "flesh": {"mu_a_mm_inv": 0.01, "mu_s_prime_mm_inv": 0.8, "g": 0.9, "refractive_index": 1.36},
+    "skin": {"mu_a_mm_inv": 0.01, "mu_s_prime_mm_inv": 0.8, "g": 0.9, "refractive_index": 1.40}
+  }}]
+}

@@ -1,0 +1,5 @@
+add_library(fruitsim_core ${PROJECT_SOURCE_DIR}/src/core/random.cpp)
+add_library(fruitsim::core ALIAS fruitsim_core)
+target_compile_features(fruitsim_core PUBLIC cxx_std_17)
+target_include_directories(fruitsim_core PUBLIC ${PROJECT_SOURCE_DIR}/include)
+fruitsim_set_warnings(fruitsim_core)

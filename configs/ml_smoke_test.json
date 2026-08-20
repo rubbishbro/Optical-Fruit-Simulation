@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "dataset": "../data/synthetic/synthetic_golden_delicious_smoke.csv",
+  "output": "/tmp/fruitsim-ml-smoke",
+  "seed": 42,
+  "validation_mode": "paper_compatible",
+  "parallel_jobs": 1,
+  "feature_sets": ["mu_a", "combined"],
+  "preprocessing": ["standard"],
+  "models": ["mlr", "plsr", "svr", "rf"]
+}

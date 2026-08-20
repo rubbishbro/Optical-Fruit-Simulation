@@ -1,50 +1,61 @@
 # fruitsim
 
-`fruitsim` is a small C++17 ray tracing simulation platform starter. The first kernel layer contains:
+`fruitsim` is a modular C++17 Monte Carlo photon-transport platform for fruit optics, with a Python
+workflow for comparing SSC regression models. The bundled Golden Delicious configuration is
+synthetic and is **not valid for real SSC prediction**.
 
-- `Vec3`: vector math for geometry and color-like quantities
-- `Ray`: origin, direction, and parametric evaluation with `at(t)`
-- `Random`: simple uniform random sampling utilities
-- `fruitsim_cli`: a tiny executable that creates and prints a ray
-- `fruitsim_tests`: minimal core tests without external dependencies
-
-## Build
+## Build and test
 
 ```bash
-cmake -S . -B build
-cmake --build build
+cmake -S . -B build -DFRUITSIM_BUILD_TESTS=ON
+cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-## Run
+The first configure downloads pinned nlohmann/json 3.12.0. CUDA, the GUI and practice example are
+off by default.
+
+## Run the apple simulation
 
 ```bash
-./build/apps/fruitsim_cli/fruitsim_cli
+./build/apps/fruitsim_cli/fruitsim_cli validate \
+  --config configs/golden_delicious_demo.json
+
+./build/apps/fruitsim_cli/fruitsim_cli run \
+  --config configs/golden_delicious_demo.json \
+  --output results/golden_delicious_demo
 ```
 
-## Project Tree
+Outputs include `summary.csv`, `detectors.csv`, `absorption_grid.csv`, `trajectories.csv` and
+`manifest.json`. Use `--photons`, `--seed`, `--threads` and `--backend` for controlled overrides.
 
-```text
-.
-├── CMakeLists.txt
-├── GUIDE.md
-├── README.md
-├── apps
-│   └── fruitsim_cli
-│       ├── CMakeLists.txt
-│       └── main.cpp
-├── include
-│   └── fruitsim
-│       ├── random.hpp
-│       ├── ray.hpp
-│       └── vec3.hpp
-├── src
-│   └── random.cpp
-└── tests
-    ├── CMakeLists.txt
-    └── test_core.cpp
+## Generate data and compare SSC models
+
+Use an environment containing NumPy, pandas, SciPy, scikit-learn and joblib:
+
+```bash
+PYTHONPATH=python python -m fruitsim_ml generate-demo \
+  --output data/synthetic/synthetic_golden_delicious_v1.csv \
+  --samples 600 --seed 20260819
+
+PYTHONPATH=python python -m fruitsim_ml train \
+  --config configs/ml_golden_demo.json
 ```
 
-## Next Kernel Steps
+Training emits JSONL progress and writes a leaderboard, predictions, split assignments, metrics,
+feature schema and serialized pipelines under `results/ml_golden_demo`.
 
-The next natural modules are `HitRecord`, `Hittable`, `Sphere`, `Camera`, and a first image writer such as PPM output.
+## Optional components
+
+```bash
+cmake -S . -B build-gui -DFRUITSIM_BUILD_GUI=ON
+cmake --build build-gui --parallel
+./build-gui/apps/fruitsim_gui/fruitsim_gui
+
+cmake -S . -B build-cuda -DFRUITSIM_ENABLE_CUDA=ON
+```
+
+The GUI uses pinned Dear ImGui, ImPlot and GLFW sources. CUDA currently provides device discovery and
+an explicit unimplemented transport boundary; it never silently falls back to CPU.
+
+See [GUIDE.md](GUIDE.md) for architecture, physics assumptions, data policy and roadmap.
