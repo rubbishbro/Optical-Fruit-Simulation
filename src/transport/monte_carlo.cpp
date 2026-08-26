@@ -87,8 +87,11 @@ void SimulationProblem::validate() const
         throw std::invalid_argument("Exterior refractive index must be positive");
     }
     if (execution.photons_per_wavelength == 0 || execution.batch_size == 0
-        || execution.max_reduction_batches == 0) {
+        || execution.max_reduction_batches == 0 || execution.max_events == 0) {
         throw std::invalid_argument("Photon and batch counts must be positive");
+    }
+    if (execution.boundary_epsilon_mm <= 0.0) {
+        throw std::invalid_argument("boundary_epsilon_mm must be positive");
     }
     if (execution.roulette_threshold < 0.0 || execution.roulette_survival <= 0.0
         || execution.roulette_survival > 1.0) {
@@ -188,6 +191,7 @@ BatchResult simulate_batch(
                     problem.execution.boundary_epsilon_mm);
                 if (!boundary) {
                     result.discarded += photon.weight;
+                    ++result.boundary_failures;
                     alive = false;
                     break;
                 }
@@ -273,6 +277,7 @@ BatchResult simulate_batch(
 
         if (alive) {
             result.discarded += photon.weight;
+            ++result.max_event_terminations;
         }
         const double max_depth = 2.0 * problem.domain.outer_radius_mm();
         const std::size_t depth_bin = std::min(

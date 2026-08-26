@@ -63,7 +63,7 @@ split; `research` holds out complete batches and uses grouped CV.
 The model artifact always records its feature schema, wavelength axis, split, metrics and data
 status. Only models validated on independent experimental batches may be marked calibrated.
 
-## Validated local environment (2026-08-20)
+## Validated local environment (updated 2026-08-26)
 
 The workstation has an NVIDIA GeForce RTX 4060 Laptop GPU (compute capability 8.9). Host-side
 validation found the following environments:
@@ -75,9 +75,11 @@ validation found the following environments:
 
 `mamba-torch38` is not used to install `fruitsim_ml`, because the package requires Python 3.10 or
 newer. It is only the source of the CUDA toolkit for the C++ build. The CUDA-enabled project builds,
-both C++ test executables pass, and `fruitsim_cli devices` reports the RTX 4060. This validates the
-toolchain and device discovery only. `CudaTransportBackend::run` deliberately reports an error
-because the CUDA photon transport kernel has not yet been implemented and statistically validated.
+all CPU/CUDA tests pass, and `fruitsim_cli devices` reports the RTX 4060. The CUDA scalar kernel now
+implements source launch, layered boundaries with residual optical depth, absorption, HG scattering,
+Fresnel/Snell handling, roulette, R/T/A, radial response, penetration depth, 3D absorption grids and
+bounded debug trajectories. It uses float photon state, double tallies, bounded photon batches and a
+fixed host reduction order for repeatable scalar results.
 
 Some managed or containerized shells hide `/dev/nvidia*`; in that case PyTorch can report
 `cuda.is_available() == false` even though the host GPU is working. Confirm from a normal host shell.
@@ -160,26 +162,46 @@ cmake -S . -B build-cuda \
 cmake --build build-cuda --parallel
 ctest --test-dir build-cuda --output-on-failure
 ./build-cuda/apps/fruitsim_cli/fruitsim_cli devices
+
+./build-cuda/apps/fruitsim_cli/fruitsim_cli run \
+  --config configs/golden_delicious_demo.json \
+  --output results/golden_delicious_cuda \
+  --photons 20000 --seed 20260819 --backend cuda
 ```
 
-Do not run a production configuration with `--backend cuda` yet. Device discovery is functional, but
-the transport method intentionally fails instead of silently falling back to CPU.
+`ctest` runs a 12,000-photon CPU/GPU statistical comparison when a GPU is visible and reports the
+test as skipped otherwise. `summary.csv` includes `boundary_failures` and
+`max_event_terminations`; both must remain zero in accepted validation cases. `manifest.json`
+records device, compute capability, CUDA driver/runtime/toolkit versions, precision, block size,
+boundary nudge and reduction method. The backend is suitable for engineering validation, but the
+synthetic apple inputs still prevent real SSC claims.
+
+The 2026-08-26 full-demo check transported 20,000 photons at each of 11 wavelengths on the RTX 4060
+in about 4.09 s. It produced the spectral summary, radial detector response, 21^3 absorption grid and
+bounded trajectories with zero boundary failures, zero maximum-event terminations and a maximum
+absolute energy residual of `9.53e-6`. This is a local validation record, not a portable performance
+benchmark or proof that the synthetic optical properties represent measured apples.
 
 ## Remaining work and improvement priorities
 
-### P0: required before scientific GPU results
+### P0: required before publication-grade GPU results
 
-1. Implement the actual CUDA photon lifecycle: source launch, residual optical-depth boundary
-   crossing, absorption, HG scattering, Fresnel/Snell handling, roulette and detector/grid tallies.
-2. Add block-local reduction and double-precision global statistics, bounded-memory batching,
-   cancellation and progress reporting. Record GPU model, driver, toolkit and kernel settings in the
-   result manifest.
-3. Add CPU/CUDA statistical equivalence tests for R/T/A, layer absorption, radial response,
-   penetration depth and spatial grids. GPU and CPU do not need photon-by-photon identity, but their
-   confidence intervals and energy residuals must agree.
-4. Expand physics validation beyond unit tests: analytical Beer-Lambert cases, matched-index and
-   total-internal-reflection cases, convergence studies and independent MCML-style reference cases.
-5. Replace synthetic optical curves with precisely extracted, citable Golden Delicious skin, flesh
+1. Extend CPU/CUDA equivalence coverage from the current R/T/A, radial and penetration checks to
+   multilayer refractive mismatch, Gaussian sources, 3D grid similarity, roulette extremes and
+   photon-count convergence with predefined confidence criteria.
+2. Add an independent MCML-style reference corpus and analytical Beer-Lambert/Fresnel regression
+   tables. The current unit tests cover core cases but are not yet a publication-grade verification
+   package.
+3. Replace per-photon device-to-host scalar copies with a validated block/device reduction for large
+   runs, retain double tally precision and deterministic reduction, overlap batches with CUDA streams,
+   and benchmark throughput/memory against the CPU reference.
+4. Add CUDA compile-only CI plus a real GPU CI runner. The current hosted CI is CPU-only; in a CUDA
+   build the runtime test cleanly skips without a visible GPU, but hosted CI does not yet configure
+   that build and therefore cannot detect CUDA compiler, driver or kernel regressions.
+5. Resolve the conda CUDA 13 `nvlink` warnings about incompatible sysroot static libraries or provide
+   a pinned native CUDA toolchain file; the current executable links and tests successfully, but a
+   clean reproducible build is preferable.
+6. Replace synthetic optical curves with precisely extracted, citable Golden Delicious skin, flesh
    and core measurements. Keep cultivar, method, units, uncertainty and interpolation provenance;
    never fill missing spectral ranges by unlabelled extrapolation.
 
@@ -221,7 +243,8 @@ the transport method intentionally fails instead of silently falling back to CPU
 2. SSC comparison pipeline — implemented for synthetic method demonstrations.
 3. GUI result visualization — initial optional workbench implemented; full task control and plots are
    pending.
-4. CUDA toolkit build and device discovery — verified on RTX 4060; photon kernel is not implemented.
+4. CUDA scalar photon transport — implemented and statistically smoke-tested on RTX 4060; broader
+   reference validation, device reduction optimization and GPU CI remain pending.
 5. Experimental import, batch-aware calibration and simulation-to-measurement residual correction —
    pending measured data.
 6. Voxel/mesh geometry, time-resolved transport, polarization and fluorescence — future work.

@@ -13,6 +13,10 @@
         "transport_mode": {"const": "scalar"},
         "photons_per_wavelength": {"type": "integer", "minimum": 1},
         "seed": {"type": "integer", "minimum": 0},
+        "batch_size": {"type": "integer", "minimum": 1},
+        "max_reduction_batches": {"type": "integer", "minimum": 1},
+        "max_events": {"type": "integer", "minimum": 1},
+        "boundary_epsilon_mm": {"type": "number", "exclusiveMinimum": 0},
         "backend": {"enum": ["cpu", "cuda"]}
       }
     },

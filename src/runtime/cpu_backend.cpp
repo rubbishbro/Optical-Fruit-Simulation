@@ -66,6 +66,12 @@ SimulationResult CpuTransportBackend::run(
     const std::size_t requested_threads = problem.execution.threads == 0
         ? std::max(1U, std::thread::hardware_concurrency())
         : problem.execution.threads;
+    output.runtime_metadata = {
+        {"state_precision", "double"},
+        {"tally_precision", "double"},
+        {"reduction", "fixed_batch_order"},
+        {"worker_threads", std::to_string(requested_threads)},
+    };
 
     for (std::size_t wavelength_index = 0;
          wavelength_index < problem.spectra.size(); ++wavelength_index) {
@@ -132,6 +138,8 @@ SimulationResult CpuTransportBackend::run(
             result.reflectance += batch.reflected;
             result.transmittance += batch.transmitted;
             result.discarded_weight += batch.discarded;
+            result.boundary_failures += batch.boundary_failures;
+            result.max_event_terminations += batch.max_event_terminations;
             batch_reflectance.push_back(batch.reflected / batch.photon_count);
             batch_transmittance.push_back(batch.transmitted / batch.photon_count);
             for (std::size_t index = 0; index < result.absorbed_by_region.size(); ++index) {

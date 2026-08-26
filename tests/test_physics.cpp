@@ -84,6 +84,8 @@ void test_transport_determinism_and_energy()
     assert(a.reflectance == b.reflectance);
     assert(a.transmittance == b.transmittance);
     assert(a.absorbed_by_region == b.absorbed_by_region);
+    assert(a.boundary_failures == 0);
+    assert(a.max_event_terminations == 0);
     assert(std::abs(a.energy_residual) < 1.0e-10);
 }
 

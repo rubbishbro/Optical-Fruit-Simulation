@@ -10,6 +10,9 @@
     "seed": 20260819,
     "threads": 0,
     "batch_size": 1000,
+    "max_reduction_batches": 256,
+    "max_events": 100000,
+    "boundary_epsilon_mm": 1e-7,
     "backend": "cpu",
     "assumptions": [
       "Method demonstration only; not valid for real apple SSC prediction",

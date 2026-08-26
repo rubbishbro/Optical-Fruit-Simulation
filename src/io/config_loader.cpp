@@ -87,6 +87,7 @@ SimulationProblem load_simulation_config(const std::filesystem::path& path)
     problem.execution.max_reduction_batches = session.value(
         "max_reduction_batches", std::size_t{256});
     problem.execution.max_events = session.value("max_events", std::uint32_t{100000});
+    problem.execution.boundary_epsilon_mm = session.value("boundary_epsilon_mm", 1.0e-7);
 
     if (root.contains("roulette")) {
         const auto& roulette = root.at("roulette");

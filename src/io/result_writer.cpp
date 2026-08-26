@@ -30,7 +30,8 @@ void write_simulation_results(
 
     auto summary = output_file(output_directory / "summary.csv");
     summary << "wavelength_nm,photons,reflectance,reflectance_se,transmittance,"
-               "transmittance_se,absorbed_total,discarded_weight,energy_residual,"
+               "transmittance_se,absorbed_total,discarded_weight,boundary_failures,"
+               "max_event_terminations,energy_residual,"
                "penetration_q50_mm,penetration_q90_mm";
     for (const auto& layer : problem.domain.layers()) summary << ",absorbed_" << layer.name;
     summary << '\n';
@@ -41,6 +42,7 @@ void write_simulation_results(
                 << wavelength.reflectance << ',' << wavelength.reflectance_standard_error << ','
                 << wavelength.transmittance << ',' << wavelength.transmittance_standard_error << ','
                 << absorbed << ',' << wavelength.discarded_weight << ','
+                << wavelength.boundary_failures << ',' << wavelength.max_event_terminations << ','
                 << wavelength.energy_residual << ',' << wavelength.penetration_q50_mm << ','
                 << wavelength.penetration_q90_mm;
         for (double value : wavelength.absorbed_by_region) summary << ',' << value;
@@ -95,7 +97,7 @@ void write_simulation_results(
     nlohmann::json manifest{
         {"schema_version", 1},
         {"software", "fruitsim"},
-        {"software_version", "0.2.0"},
+        {"software_version", "0.3.0"},
         {"session_id", problem.metadata.session_id},
         {"cultivar", problem.metadata.cultivar},
         {"dataset_id", problem.metadata.dataset_id},
@@ -103,6 +105,7 @@ void write_simulation_results(
         {"transport_mode", problem.metadata.transport_mode},
         {"assumptions", problem.metadata.assumptions},
         {"backend", result.backend},
+        {"runtime_metadata", result.runtime_metadata},
         {"seed", problem.execution.seed},
         {"threads", problem.execution.threads},
         {"photons_per_wavelength", problem.execution.photons_per_wavelength},

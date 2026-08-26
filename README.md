@@ -52,10 +52,20 @@ cmake -S . -B build-gui -DFRUITSIM_BUILD_GUI=ON
 cmake --build build-gui --parallel
 ./build-gui/apps/fruitsim_gui/fruitsim_gui
 
-cmake -S . -B build-cuda -DFRUITSIM_ENABLE_CUDA=ON
+export FRUITSIM_CUDA_ROOT=/home/rubbishbro/miniforge3/envs/mamba-torch38
+cmake -S . -B build-cuda \
+  -DFRUITSIM_ENABLE_CUDA=ON \
+  -DCMAKE_CUDA_COMPILER="$FRUITSIM_CUDA_ROOT/bin/nvcc" \
+  -DCUDAToolkit_ROOT="$FRUITSIM_CUDA_ROOT"
+cmake --build build-cuda --parallel
+ctest --test-dir build-cuda --output-on-failure
+./build-cuda/apps/fruitsim_cli/fruitsim_cli run \
+  --config configs/golden_delicious_demo.json \
+  --output results/golden_delicious_cuda --backend cuda
 ```
 
-The GUI uses pinned Dear ImGui, ImPlot and GLFW sources. CUDA currently provides device discovery and
-an explicit unimplemented transport boundary; it never silently falls back to CPU.
+The GUI uses pinned Dear ImGui, ImPlot and GLFW sources. The CUDA scalar backend implements the same
+layered-sphere photon lifecycle as the CPU reference, uses bounded batches, float propagation state,
+double tallies and fixed-order host reduction. CUDA tests are skipped when no device is visible.
 
 See [GUIDE.md](GUIDE.md) for architecture, physics assumptions, data policy and roadmap.

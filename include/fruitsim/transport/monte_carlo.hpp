@@ -12,6 +12,8 @@ struct BatchResult {
     double transmitted = 0.0;
     std::vector<double> absorbed;
     double discarded = 0.0;
+    std::uint64_t boundary_failures = 0;
+    std::uint64_t max_event_terminations = 0;
     std::vector<double> radial_reflectance;
     std::vector<double> absorption_grid;
     std::vector<std::uint64_t> depth_histogram;

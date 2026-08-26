@@ -185,7 +185,7 @@ int main()
         }
         ImGui::TextWrapped("%s", status.c_str());
         ImGui::Text("CPU backend: available");
-        ImGui::Text("CUDA backend: optional build");
+        ImGui::Text("CUDA backend: available through a CUDA-enabled CLI build");
         ImGui::End();
 
         ImGui::Begin("Propagation results");

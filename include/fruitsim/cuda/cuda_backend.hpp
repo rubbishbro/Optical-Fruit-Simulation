@@ -18,8 +18,8 @@ struct CudaDeviceInfo {
 
 [[nodiscard]] std::vector<CudaDeviceInfo> enumerate_cuda_devices();
 
-// Device discovery is implemented first. Until a validated transport kernel
-// lands, this backend fails explicitly and never falls back to CPU silently.
+// CUDA scalar transport uses float photon state and double tallies. Work is
+// processed in bounded batches and reduced in a deterministic host order.
 class CudaTransportBackend final : public ITransportBackend {
 public:
     SimulationResult run(

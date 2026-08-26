@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -97,6 +98,8 @@ struct WavelengthResult {
     double transmittance = 0.0;
     std::vector<double> absorbed_by_region;
     double discarded_weight = 0.0;
+    std::uint64_t boundary_failures = 0;
+    std::uint64_t max_event_terminations = 0;
     double energy_residual = 0.0;
     double reflectance_standard_error = 0.0;
     double transmittance_standard_error = 0.0;
@@ -110,6 +113,7 @@ struct WavelengthResult {
 struct SimulationResult {
     std::string backend;
     double elapsed_seconds = 0.0;
+    std::map<std::string, std::string> runtime_metadata;
     std::vector<WavelengthResult> wavelengths;
 };
 

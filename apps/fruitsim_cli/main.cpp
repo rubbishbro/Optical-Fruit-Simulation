@@ -27,7 +27,7 @@ void usage()
 {
     std::cout
         << "fruitsim_cli run --config FILE [--output DIR] [--photons N] [--seed N] "
-           "[--threads N] [--backend cpu]\n"
+           "[--threads N] [--backend cpu|cuda]\n"
         << "fruitsim_cli validate --config FILE\n"
         << "fruitsim_cli devices\n";
 }

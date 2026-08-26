@@ -9,6 +9,10 @@
     "photons_per_wavelength": 10000,
     "seed": 42,
     "threads": 0,
+    "batch_size": 1000,
+    "max_reduction_batches": 256,
+    "max_events": 100000,
+    "boundary_epsilon_mm": 1e-7,
     "backend": "cpu",
     "assumptions": ["Artificial refractive-index mismatch for boundary verification"]
   },
