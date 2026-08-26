@@ -88,7 +88,11 @@ def generate_synthetic_golden_delicious(
                     "refractive_index": 1.36,
                     "ssc_brix": ssc,
                     "batch_id": batch_id,
-                    "source_doi": "10.1016/j.compag.2009.04.002;10.17660/ActaHortic.2012.945.24",
+                    "source_doi": (
+                        "10.1016/j.compag.2009.04.002;"
+                        "10.13031/2013.26807;"
+                        "10.17660/ActaHortic.2012.945.24"
+                    ),
                     "measurement_method": "synthetic literature-constrained demonstration",
                     "uncertainty": "synthetic_noise_model_v1",
                     "notes": WARNING,

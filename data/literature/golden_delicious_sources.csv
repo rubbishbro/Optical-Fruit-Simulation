@@ -1,4 +1,5 @@
 dataset_id,cultivar,wavelength_range_nm,measurement_method,sample_count,source_doi,usage,notes
-gd_mc_2009,Golden Delicious,500-1000,spatially-resolved hyperspectral plus diffusion inverse,600,10.1016/j.compag.2009.04.002,range_and_validation_reference,No sample-level data bundled
+gd_mc_2009,Golden Delicious,500-1000,Monte Carlo transport using measured optical-property distributions,600,10.1016/j.compag.2009.04.002,transport_feature_reference,No sample-level data bundled
+gd_optical_ssc_2009,Golden Delicious,500-1000,spatially-resolved hyperspectral plus diffusion inverse,600,10.13031/2013.26807,spectral_trend_and_ssc_reference,Absorption and reduced-scattering trends plus SSC modeling; no sample-level data bundled
 gd_ssc_2012,Golden Delicious,500-1000,spatially-resolved hyperspectral plus diffusion inverse,1039,10.17660/ActaHortic.2012.945.24,method_and_metric_reference,PLS SSC r approximately 0.778 and SEP approximately 0.82 Brix
 apple_sphere_2016,multiple apple cultivars,500-1000,literature optical properties plus Monte Carlo,not_applicable,10.3390/photonics3010002,geometry_reference,Two-layer skin and flesh model

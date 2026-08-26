@@ -15,6 +15,9 @@ optical properties -> C++ Monte Carlo -> detector features -> Python ML -> SSC (
 Synthetic data is only a method demonstration. It must never be presented as a calibrated apple
 quality model.
 
+The exact code path, file-level implementation map, output semantics and literature/reference
+boundaries are maintained in [`docs/TECHNICAL_CHAIN.md`](docs/TECHNICAL_CHAIN.md).
+
 ## Current architecture
 
 - `core`: vector/ray primitives and counter-based Philox random streams.
@@ -51,7 +54,9 @@ Reference baselines:
 
 - Cen, Lu and Mendoza, Golden Delicious optical properties and SSC, 500–1000 nm.
 - Qin and Lu, Monte Carlo light transport in 600 Golden Delicious apples.
-- Lohner et al., two-layer spherical apple Monte Carlo model.
+- Qin, Lu and Peng, absorption/reduced-scattering spectra and SSC prediction in 600 Golden
+  Delicious apples.
+- Askoura, Vaudelle and L'Huillier, two-layer spherical apple Monte Carlo model.
 
 ## SSC modeling
 

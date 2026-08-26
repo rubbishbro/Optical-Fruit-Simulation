@@ -68,4 +68,6 @@ The GUI uses pinned Dear ImGui, ImPlot and GLFW sources. The CUDA scalar backend
 layered-sphere photon lifecycle as the CPU reference, uses bounded batches, float propagation state,
 double tallies and fixed-order host reduction. CUDA tests are skipped when no device is visible.
 
-See [GUIDE.md](GUIDE.md) for architecture, physics assumptions, data policy and roadmap.
+See [GUIDE.md](GUIDE.md) for startup commands, architecture, assumptions and roadmap. See
+[docs/TECHNICAL_CHAIN.md](docs/TECHNICAL_CHAIN.md) for the current end-to-end chain, source-file
+mapping, implementation details and literature/reference boundaries.
