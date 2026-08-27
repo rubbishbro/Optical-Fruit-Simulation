@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "dataset": "../data/synthetic/synthetic_golden_delicious_v1.csv",
+  "output": "results/ml_golden_demo",
+  "seed": 20260819,
+  "validation_mode": "paper_compatible",
+  "parallel_jobs": 2,
+  "feature_sets": ["mu_a", "combined", "product", "mu_eff", "reflectance", "mc_augmented"],
+  "preprocessing": ["raw", "standard", "snv", "savgol", "savgol_derivative"],
+  "models": ["mlr", "plsr", "svr", "rf"]
+}

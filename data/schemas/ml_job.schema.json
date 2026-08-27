@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fruitsim SSC model job",
+  "type": "object",
+  "required": ["schema_version", "dataset", "output", "feature_sets", "preprocessing", "models"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "dataset": {"type": "string"},
+    "output": {"type": "string"},
+    "seed": {"type": "integer", "minimum": 0},
+    "validation_mode": {"enum": ["paper_compatible", "research"]},
+    "model_status": {"enum": ["method_demo", "experiment_calibrated"]},
+    "external_validation_confirmed": {"type": "boolean"},
+    "feature_sets": {"type": "array", "minItems": 1},
+    "preprocessing": {"type": "array", "minItems": 1},
+    "models": {"type": "array", "minItems": 1}
+  }
+}

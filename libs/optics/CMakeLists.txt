@@ -1,0 +1,6 @@
+add_library(fruitsim_optics ${PROJECT_SOURCE_DIR}/src/optics/optics.cpp)
+add_library(fruitsim::optics ALIAS fruitsim_optics)
+target_compile_features(fruitsim_optics PUBLIC cxx_std_17)
+target_include_directories(fruitsim_optics PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(fruitsim_optics PUBLIC fruitsim::core)
+fruitsim_set_warnings(fruitsim_optics)

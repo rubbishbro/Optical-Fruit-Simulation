@@ -1,0 +1,6 @@
+add_library(fruitsim_transport ${PROJECT_SOURCE_DIR}/src/transport/monte_carlo.cpp)
+add_library(fruitsim::transport ALIAS fruitsim_transport)
+target_compile_features(fruitsim_transport PUBLIC cxx_std_17)
+target_include_directories(fruitsim_transport PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(fruitsim_transport PUBLIC fruitsim::geometry fruitsim::optics)
+fruitsim_set_warnings(fruitsim_transport)
