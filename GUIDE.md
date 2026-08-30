@@ -9,7 +9,9 @@ followed by calibration against measured spectra and destructive SSC reference v
 The physics simulator and SSC model are deliberately separate:
 
 ```text
-optical properties -> C++ Monte Carlo -> detector features -> Python ML -> SSC (degree Brix)
+optical properties -> ring illumination -> layered Monte Carlo -> surface escape
+                   -> detector geometry/NA -> detected spectrum/path statistics
+                   -> future experimental calibration and SSC modeling
 ```
 
 Synthetic data is only a method demonstration. It must never be presented as a calibrated apple
@@ -35,11 +37,13 @@ one of `mu_s_mm_inv` and `mu_s_prime_mm_inv`.
 
 ## Physical model
 
-The scalar Monte Carlo kernel launches a pencil beam, samples optical depth, preserves residual
+The scalar Monte Carlo kernel launches a pencil, Gaussian or annular beam, samples optical depth, preserves residual
 optical depth across region boundaries, deposits absorption at collisions, samples the
 Henyey–Greenstein phase function, applies stochastic Fresnel reflection/refraction, and terminates
 low-weight packets with Russian roulette. Results include R/T/A, layer absorption, radial
-reflectance, an optional absorption grid, penetration quantiles, standard errors and sampled tracks.
+reflectance, an optional absorption grid, all-photon penetration quantiles, standard errors and sampled tracks.
+An optional circular detector filters reflected surface escapes by its physical disk and acceptance cone, and
+reports detected weight plus detected-only depth and skin/flesh path fractions without changing R/T/A.
 
 Polarization, fluorescence, time-of-flight, voxel geometry and tetrahedral meshes are versioned
 future transport modes. They must not enlarge the scalar `PhotonState`.
@@ -68,7 +72,7 @@ split; `research` holds out complete batches and uses grouped CV.
 The model artifact always records its feature schema, wavelength axis, split, metrics and data
 status. Only models validated on independent experimental batches may be marked calibrated.
 
-## Validated local environment (updated 2026-08-26)
+## Validated local environment (updated 2026-08-30)
 
 The workstation has an NVIDIA GeForce RTX 4060 Laptop GPU (compute capability 8.9). Host-side
 validation found the following environments:
@@ -83,7 +87,8 @@ newer. It is only the source of the CUDA toolkit for the C++ build. The CUDA-ena
 all CPU/CUDA tests pass, and `fruitsim_cli devices` reports the RTX 4060. The CUDA scalar kernel now
 implements source launch, layered boundaries with residual optical depth, absorption, HG scattering,
 Fresnel/Snell handling, roulette, R/T/A, radial response, penetration depth, 3D absorption grids and
-bounded debug trajectories. It uses float photon state, double tallies, bounded photon batches and a
+bounded debug trajectories. Ring launch, circular-detector acceptance and detected path statistics
+are implemented on both CPU and CUDA. It uses float photon state, double tallies, bounded photon batches and a
 fixed host reduction order for repeatable scalar results.
 
 Some managed or containerized shells hide `/dev/nvidia*`; in that case PyTorch can report
@@ -113,6 +118,26 @@ ctest --test-dir build-cpu --output-on-failure
 
 For a quick smoke test, reduce `--photons` to `1000`. Scientific runs must report convergence versus
 photon count and should not use the smoke-test count.
+
+### Ring source and central detector
+
+```bash
+./build-cpu/apps/fruitsim_cli/fruitsim_cli validate \
+  --config configs/ring_sensor_demo.json
+./build-cpu/apps/fruitsim_cli/fruitsim_cli run \
+  --config configs/ring_sensor_demo.json \
+  --output results/ring_sensor_demo \
+  --photons 20000 --threads 8 --seed 20260819 --backend cpu
+
+./build-cpu/apps/fruitsim_cli/fruitsim_cli scan-ring \
+  --config configs/ring_sensor_demo.json \
+  --ring-radii 1,2,3,5,8,10,12,15 \
+  --output results/ring_radius_scan \
+  --photons 10000 --threads 8 --seed 20260819 --backend cpu
+```
+
+The scan writes long-form `ring_scan.csv` plus `ring_scan_manifest.json`. It is a forward parameter
+scan only and does not label any radius optimal.
 
 ### Python SSC demonstration
 
@@ -169,9 +194,9 @@ ctest --test-dir build-cuda --output-on-failure
 ./build-cuda/apps/fruitsim_cli/fruitsim_cli devices
 
 ./build-cuda/apps/fruitsim_cli/fruitsim_cli run \
-  --config configs/golden_delicious_demo.json \
-  --output results/golden_delicious_cuda \
-  --photons 20000 --seed 20260819 --backend cuda
+  --config configs/ring_sensor_demo.json \
+  --output results/ring_sensor_cuda \
+  --photons 2000 --seed 20260819 --backend cuda
 ```
 
 `ctest` runs a 12,000-photon CPU/GPU statistical comparison when a GPU is visible and reports the
@@ -182,7 +207,7 @@ boundary nudge and reduction method. The backend is suitable for engineering val
 synthetic apple inputs still prevent real SSC claims.
 
 The 2026-08-26 full-demo check transported 20,000 photons at each of 11 wavelengths on the RTX 4060
-in about 4.09 s. It produced the spectral summary, radial detector response, 21^3 absorption grid and
+in about 4.09 s. It produced the spectral summary, radial reflectance response, 21^3 absorption grid and
 bounded trajectories with zero boundary failures, zero maximum-event terminations and a maximum
 absolute energy residual of `9.53e-6`. This is a local validation record, not a portable performance
 benchmark or proof that the synthetic optical properties represent measured apples.
@@ -226,8 +251,8 @@ benchmark or proof that the synthetic optical properties represent measured appl
 5. Complete GUI task control: JSONL progress parsing, cancellation, logs, result history and cache;
    editable source/detector/tissue parameters; radial plots, heatmaps, penetration plots and sampled
    trajectories; persistent synthetic/experimental provenance on every view.
-6. Improve detector physics to support explicit illumination/detection probe position, numerical
-   aperture, incidence angle, source-detector separation, spectrometer response and calibration.
+6. Extend the implemented ring/circular-detector geometry with mechanical occlusion, lens/fiber
+   transfer functions, spectrometer response, dark/white correction and physical probe calibration.
 
 ### P2: capability and engineering extensions
 
@@ -250,6 +275,8 @@ benchmark or proof that the synthetic optical properties represent measured appl
    pending.
 4. CUDA scalar photon transport — implemented and statistically smoke-tested on RTX 4060; broader
    reference validation, device reduction optimization and GPU CI remain pending.
-5. Experimental import, batch-aware calibration and simulation-to-measurement residual correction —
+5. Ring illumination, central circular detector and detected path statistics — implemented on CPU
+   and CUDA for simulation-demo geometry; physical probe calibration remains pending.
+6. Experimental import, batch-aware calibration and simulation-to-measurement residual correction —
    pending measured data.
-6. Voxel/mesh geometry, time-resolved transport, polarization and fluorescence — future work.
+7. Voxel/mesh geometry, time-resolved transport, polarization and fluorescence — future work.

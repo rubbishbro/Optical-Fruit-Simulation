@@ -16,6 +16,18 @@ fruitsim::SimulationProblem comparison_problem()
     };
     problem.source.position_mm = {0, 0, -12};
     problem.source.direction = {0, 0, 1};
+    problem.source.type = "ring";
+    problem.source.ring_plane_normal = {0, 0, 1};
+    problem.source.ring_radius_mm = 3.0;
+    problem.source.ring_width_mm = 1.0;
+    problem.source.direction_mode = "aim_at";
+    problem.source.target_mm = {0, 0, 0};
+    problem.source.spatial_sampling = "uniform_area";
+    problem.detector.enabled = true;
+    problem.detector.center_mm = {0, 0, -10.1};
+    problem.detector.axis = {0, 0, 1};
+    problem.detector.radius_mm = 4.0;
+    problem.detector.acceptance_half_angle_deg = 80.0;
     problem.exterior_refractive_index = 1.0;
     problem.spectra = {{800.0, {
         {0.03, 0.8, 0.7, 1.0},
@@ -83,6 +95,13 @@ int main()
     assert(l1_distance(cpu.radial_reflectance, gpu.radial_reflectance) < 0.05);
     assert(std::abs(cpu.penetration_q50_mm - gpu.penetration_q50_mm) <= 1.0);
     assert(std::abs(cpu.penetration_q90_mm - gpu.penetration_q90_mm) <= 2.0);
+    assert(cpu.detected_weight > 0.0);
+    assert(gpu.detected_weight > 0.0);
+    assert(std::abs(cpu.detection_efficiency - gpu.detection_efficiency) < 0.01);
+    assert(std::abs(cpu.detected_penetration_mean_mm
+        - gpu.detected_penetration_mean_mm) <= 2.0);
+    assert(std::abs(cpu.skin_path_fraction - gpu.skin_path_fraction) < 0.15);
+    assert(std::abs(cpu.flesh_path_fraction - gpu.flesh_path_fraction) < 0.15);
 
     // Per-photon output followed by fixed host reduction makes scalar CUDA
     // results bitwise repeatable for a fixed device, seed and build.
@@ -91,5 +110,10 @@ int main()
     assert(gpu.absorbed_by_region == gpu_repeat.absorbed_by_region);
     assert(gpu.discarded_weight == gpu_repeat.discarded_weight);
     assert(gpu.radial_reflectance == gpu_repeat.radial_reflectance);
+    assert(gpu.detected_photon_count == gpu_repeat.detected_photon_count);
+    assert(gpu.detected_weight == gpu_repeat.detected_weight);
+    assert(gpu.detected_penetration_mean_mm == gpu_repeat.detected_penetration_mean_mm);
+    assert(gpu.skin_path_fraction == gpu_repeat.skin_path_fraction);
+    assert(gpu.flesh_path_fraction == gpu_repeat.flesh_path_fraction);
     return 0;
 }

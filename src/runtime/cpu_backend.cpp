@@ -52,6 +52,26 @@ double histogram_quantile(
     return max_depth;
 }
 
+double weighted_histogram_quantile(
+    const std::vector<double>& histogram, double zero_depth_weight,
+    double quantile, double max_depth)
+{
+    const double total = zero_depth_weight
+        + std::accumulate(histogram.begin(), histogram.end(), 0.0);
+    if (total <= 0.0) return 0.0;
+    const double target = quantile * total;
+    if (target <= zero_depth_weight) return 0.0;
+    double cumulative = zero_depth_weight;
+    for (std::size_t index = 0; index < histogram.size(); ++index) {
+        cumulative += histogram[index];
+        if (cumulative >= target) {
+            return (static_cast<double>(index) + 0.5)
+                / static_cast<double>(histogram.size()) * max_depth;
+        }
+    }
+    return max_depth;
+}
+
 } // namespace
 
 SimulationResult CpuTransportBackend::run(
@@ -127,8 +147,14 @@ SimulationResult CpuTransportBackend::run(
             result.absorption_grid.assign(size * size * size, 0.0);
         }
         std::vector<std::uint64_t> depth_histogram(problem.scoring.depth_bins, 0);
+        std::vector<double> detected_depth_histogram(problem.scoring.depth_bins, 0.0);
         std::vector<double> batch_reflectance;
         std::vector<double> batch_transmittance;
+        double detected_depth_weighted_sum = 0.0;
+        double detected_total_path_weighted_sum = 0.0;
+        double detected_skin_path_weighted_sum = 0.0;
+        double detected_flesh_path_weighted_sum = 0.0;
+        double detected_zero_depth_weight = 0.0;
 
         for (const auto& batch : batches) {
             if (batch.photon_count == 0) {
@@ -140,6 +166,13 @@ SimulationResult CpuTransportBackend::run(
             result.discarded_weight += batch.discarded;
             result.boundary_failures += batch.boundary_failures;
             result.max_event_terminations += batch.max_event_terminations;
+            result.detected_photon_count += batch.detected_photon_count;
+            result.detected_weight += batch.detected_weight;
+            detected_depth_weighted_sum += batch.detected_depth_weighted_sum;
+            detected_total_path_weighted_sum += batch.detected_total_path_weighted_sum;
+            detected_skin_path_weighted_sum += batch.detected_skin_path_weighted_sum;
+            detected_flesh_path_weighted_sum += batch.detected_flesh_path_weighted_sum;
+            detected_zero_depth_weight += batch.detected_zero_depth_weight;
             batch_reflectance.push_back(batch.reflected / batch.photon_count);
             batch_transmittance.push_back(batch.transmitted / batch.photon_count);
             for (std::size_t index = 0; index < result.absorbed_by_region.size(); ++index) {
@@ -153,6 +186,7 @@ SimulationResult CpuTransportBackend::run(
             }
             for (std::size_t index = 0; index < depth_histogram.size(); ++index) {
                 depth_histogram[index] += batch.depth_histogram[index];
+                detected_depth_histogram[index] += batch.detected_depth_histogram[index];
             }
             result.trajectories.insert(
                 result.trajectories.end(), batch.trajectories.begin(), batch.trajectories.end());
@@ -176,6 +210,23 @@ SimulationResult CpuTransportBackend::run(
         const double max_depth = 2.0 * problem.domain.outer_radius_mm();
         result.penetration_q50_mm = histogram_quantile(depth_histogram, 0.5, max_depth);
         result.penetration_q90_mm = histogram_quantile(depth_histogram, 0.9, max_depth);
+        if (result.photons > 0) {
+            result.detection_efficiency = result.detected_weight
+                / static_cast<double>(result.photons);
+            result.detected_reflectance = result.detection_efficiency;
+        }
+        if (result.detected_weight > 0.0) {
+            result.detected_penetration_mean_mm = detected_depth_weighted_sum
+                / result.detected_weight;
+            result.detected_penetration_median_mm = weighted_histogram_quantile(
+                detected_depth_histogram, detected_zero_depth_weight, 0.5, max_depth);
+        }
+        if (detected_total_path_weighted_sum > 0.0) {
+            result.skin_path_fraction = detected_skin_path_weighted_sum
+                / detected_total_path_weighted_sum;
+            result.flesh_path_fraction = detected_flesh_path_weighted_sum
+                / detected_total_path_weighted_sum;
+        }
         output.wavelengths.push_back(std::move(result));
 
         if (cancel && cancel->load()) {

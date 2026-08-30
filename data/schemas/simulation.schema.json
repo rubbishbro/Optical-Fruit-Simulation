@@ -29,10 +29,56 @@
         "layers_inner_to_outer": {"type": "array", "minItems": 1}
       }
     },
-    "source": {"type": "object"},
+    "source": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {"enum": ["pencil", "gaussian", "ring"]},
+        "position_mm": {"$ref": "#/$defs/vec3"},
+        "direction": {"$ref": "#/$defs/vec3"},
+        "sigma_mm": {"type": "number", "exclusiveMinimum": 0},
+        "center_mm": {"$ref": "#/$defs/vec3"},
+        "plane_normal": {"$ref": "#/$defs/vec3"},
+        "ring_radius_mm": {"type": "number", "exclusiveMinimum": 0},
+        "ring_width_mm": {"type": "number", "minimum": 0},
+        "direction_mode": {"enum": ["fixed", "aim_at"]},
+        "target_mm": {"$ref": "#/$defs/vec3"},
+        "spatial_sampling": {"enum": ["uniform_azimuth", "uniform_area"]}
+      }
+    },
+    "instrument": {
+      "type": "object",
+      "properties": {
+        "detector": {
+          "type": "object",
+          "required": ["center_mm", "axis", "radius_mm"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "type": {"const": "circular"},
+            "center_mm": {"$ref": "#/$defs/vec3"},
+            "axis": {"$ref": "#/$defs/vec3"},
+            "radius_mm": {"type": "number", "exclusiveMinimum": 0},
+            "numerical_aperture": {"type": "number", "minimum": 0},
+            "acceptance_half_angle_deg": {
+              "type": "number", "minimum": 0, "maximum": 90
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "spectra": {"type": "array", "minItems": 1},
     "scoring": {"type": "object"},
     "roulette": {"type": "object"}
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "vec3": {
+      "type": "array",
+      "prefixItems": [{"type": "number"}, {"type": "number"}, {"type": "number"}],
+      "minItems": 3,
+      "maxItems": 3
+    }
+  }
 }

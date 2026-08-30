@@ -32,7 +32,10 @@ void write_simulation_results(
     summary << "wavelength_nm,photons,reflectance,reflectance_se,transmittance,"
                "transmittance_se,absorbed_total,discarded_weight,boundary_failures,"
                "max_event_terminations,energy_residual,"
-               "penetration_q50_mm,penetration_q90_mm";
+               "penetration_q50_mm,penetration_q90_mm,launched_photons,"
+               "detected_photon_count,detected_weight,detection_efficiency,"
+               "detected_reflectance,detected_penetration_mean_mm,"
+               "detected_penetration_median_mm,skin_path_fraction,flesh_path_fraction";
     for (const auto& layer : problem.domain.layers()) summary << ",absorbed_" << layer.name;
     summary << '\n';
     for (const auto& wavelength : result.wavelengths) {
@@ -44,7 +47,12 @@ void write_simulation_results(
                 << absorbed << ',' << wavelength.discarded_weight << ','
                 << wavelength.boundary_failures << ',' << wavelength.max_event_terminations << ','
                 << wavelength.energy_residual << ',' << wavelength.penetration_q50_mm << ','
-                << wavelength.penetration_q90_mm;
+                << wavelength.penetration_q90_mm << ',' << wavelength.photons << ','
+                << wavelength.detected_photon_count << ',' << wavelength.detected_weight << ','
+                << wavelength.detection_efficiency << ',' << wavelength.detected_reflectance << ','
+                << wavelength.detected_penetration_mean_mm << ','
+                << wavelength.detected_penetration_median_mm << ','
+                << wavelength.skin_path_fraction << ',' << wavelength.flesh_path_fraction;
         for (double value : wavelength.absorbed_by_region) summary << ',' << value;
         summary << '\n';
     }
@@ -59,6 +67,20 @@ void write_simulation_results(
                       << index * width << ',' << (index + 1) * width << ','
                       << wavelength.radial_reflectance[index] << '\n';
         }
+    }
+
+    auto instrument = output_file(output_directory / "instrument.csv");
+    instrument << "wavelength_nm,launched_photons,detected_photon_count,detected_weight,"
+                  "detection_efficiency,detected_reflectance,"
+                  "detected_penetration_mean_mm,detected_penetration_median_mm,"
+                  "skin_path_fraction,flesh_path_fraction\n";
+    for (const auto& wavelength : result.wavelengths) {
+        instrument << wavelength.wavelength_nm << ',' << wavelength.photons << ','
+                   << wavelength.detected_photon_count << ',' << wavelength.detected_weight << ','
+                   << wavelength.detection_efficiency << ',' << wavelength.detected_reflectance << ','
+                   << wavelength.detected_penetration_mean_mm << ','
+                   << wavelength.detected_penetration_median_mm << ','
+                   << wavelength.skin_path_fraction << ',' << wavelength.flesh_path_fraction << '\n';
     }
 
     if (problem.scoring.grid_size > 0) {
@@ -97,7 +119,7 @@ void write_simulation_results(
     nlohmann::json manifest{
         {"schema_version", 1},
         {"software", "fruitsim"},
-        {"software_version", "0.3.0"},
+        {"software_version", "0.4.0"},
         {"session_id", problem.metadata.session_id},
         {"cultivar", problem.metadata.cultivar},
         {"dataset_id", problem.metadata.dataset_id},
@@ -110,6 +132,37 @@ void write_simulation_results(
         {"threads", problem.execution.threads},
         {"photons_per_wavelength", problem.execution.photons_per_wavelength},
         {"elapsed_seconds", result.elapsed_seconds},
+        {"instrument_assumption_status",
+         problem.detector.enabled ? "simulation_demo_assumption" : "detector_disabled"},
+        {"source", {
+            {"type", problem.source.type},
+            {"center_or_position_mm", {problem.source.position_mm.x(),
+                problem.source.position_mm.y(), problem.source.position_mm.z()}},
+            {"direction", {problem.source.direction.x(), problem.source.direction.y(),
+                problem.source.direction.z()}},
+            {"ring_plane_normal", {problem.source.ring_plane_normal.x(),
+                problem.source.ring_plane_normal.y(), problem.source.ring_plane_normal.z()}},
+            {"ring_radius_mm", problem.source.ring_radius_mm},
+            {"ring_width_mm", problem.source.ring_width_mm},
+            {"direction_mode", problem.source.direction_mode},
+            {"target_mm", {problem.source.target_mm.x(), problem.source.target_mm.y(),
+                problem.source.target_mm.z()}},
+            {"spatial_sampling", problem.source.spatial_sampling},
+        }},
+        {"detector", {
+            {"enabled", problem.detector.enabled},
+            {"type", problem.detector.type},
+            {"center_mm", {problem.detector.center_mm.x(), problem.detector.center_mm.y(),
+                problem.detector.center_mm.z()}},
+            {"axis_toward_sample", {problem.detector.axis.x(), problem.detector.axis.y(),
+                problem.detector.axis.z()}},
+            {"radius_mm", problem.detector.radius_mm},
+            {"acceptance_half_angle_deg", problem.detector.acceptance_half_angle_deg},
+            {"numerical_aperture", problem.detector.numerical_aperture},
+        }},
+        {"detector_metric_definition",
+         "detection_efficiency = detected_weight / launched_photons; detector scoring is an "
+         "observation of escaped weight and is not subtracted from R/T/A"},
         {"synthetic_warning",
          problem.metadata.source_type == "synthetic"
              ? "METHOD DEMONSTRATION ONLY - NOT VALID FOR REAL APPLE SSC PREDICTION"

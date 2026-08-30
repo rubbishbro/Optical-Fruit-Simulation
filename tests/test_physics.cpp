@@ -1,9 +1,11 @@
 #include "fruitsim/geometry/layered_sphere.hpp"
 #include "fruitsim/optics/optics.hpp"
 #include "fruitsim/runtime/cpu_backend.hpp"
+#include "fruitsim/transport/monte_carlo.hpp"
 
 #include <cassert>
 #include <cmath>
+#include <numeric>
 
 namespace {
 
@@ -116,6 +118,165 @@ void test_gaussian_source()
     assert(std::isfinite(result.energy_residual));
 }
 
+void test_ring_source_area_sampling()
+{
+    fruitsim::PhotonSource source;
+    source.type = "ring";
+    source.position_mm = {1.0, -2.0, 3.0};
+    source.direction = {0.0, 0.0, 1.0};
+    source.ring_plane_normal = {0.0, 0.0, 1.0};
+    source.ring_radius_mm = 5.0;
+    source.ring_width_mm = 2.0;
+    source.spatial_sampling = "uniform_area";
+    fruitsim::CounterRng rng{12345, 99};
+    constexpr int samples = 100000;
+    double mean_x = 0.0;
+    double mean_y = 0.0;
+    double mean_radius_squared = 0.0;
+    for (int index = 0; index < samples; ++index) {
+        const auto launch = fruitsim::sample_source_launch(source, rng);
+        const auto local = launch.position_mm - source.position_mm;
+        assert(std::abs(local.z()) < 1.0e-12);
+        const double radius_squared = local.x() * local.x() + local.y() * local.y();
+        assert(radius_squared >= 16.0 && radius_squared <= 36.0);
+        mean_x += local.x();
+        mean_y += local.y();
+        mean_radius_squared += radius_squared;
+    }
+    mean_x /= samples;
+    mean_y /= samples;
+    mean_radius_squared /= samples;
+    assert(std::abs(mean_x) < 0.04);
+    assert(std::abs(mean_y) < 0.04);
+    // Uniform annulus area gives E[r^2] = (r_inner^2 + r_outer^2) / 2.
+    assert(std::abs(mean_radius_squared - 26.0) < 0.12);
+}
+
+fruitsim::SimulationProblem detector_problem()
+{
+    fruitsim::SimulationProblem problem{
+        fruitsim::LayeredSphere{{0, 0, 0}, {{"flesh", 9.0}, {"skin", 10.0}}},
+    };
+    problem.source.position_mm = {0, 0, -12};
+    problem.source.direction = {0, 0, 1};
+    problem.detector.enabled = true;
+    problem.detector.center_mm = {0, 0, -10.1};
+    problem.detector.axis = {0, 0, 1};
+    problem.detector.radius_mm = 2.0;
+    problem.detector.acceptance_half_angle_deg = 45.0;
+    problem.spectra = {{800.0, {
+        {0.02, 1.0, 0.8, 1.0},
+        {0.04, 1.2, 0.8, 1.0},
+    }}};
+    problem.execution.photons_per_wavelength = 10000;
+    problem.execution.batch_size = 500;
+    problem.execution.seed = 2468;
+    problem.execution.roulette_threshold = 0.0;
+    problem.execution.max_events = 10000;
+    problem.scoring.radial_bins = 20;
+    problem.scoring.radial_max_mm = 10.0;
+    problem.scoring.depth_bins = 40;
+    return problem;
+}
+
+void test_detector_filter_monotonicity_and_invariance()
+{
+    fruitsim::CpuTransportBackend backend;
+    auto small = detector_problem();
+    small.detector.radius_mm = 0.5;
+    small.detector.acceptance_half_angle_deg = 20.0;
+    const auto small_result = backend.run(small).wavelengths.front();
+
+    auto large_radius = small;
+    large_radius.detector.radius_mm = 3.0;
+    const auto radius_result = backend.run(large_radius).wavelengths.front();
+    assert(radius_result.detected_weight >= small_result.detected_weight);
+
+    auto large_angle = small;
+    large_angle.detector.acceptance_half_angle_deg = 80.0;
+    const auto angle_result = backend.run(large_angle).wavelengths.front();
+    assert(angle_result.detected_weight >= small_result.detected_weight);
+
+    auto disabled = small;
+    disabled.detector.enabled = false;
+    const auto disabled_result = backend.run(disabled).wavelengths.front();
+    assert(disabled_result.detected_weight == 0.0);
+    assert(disabled_result.detected_photon_count == 0);
+    // Detector scoring is a pure observation and consumes no random values.
+    assert(disabled_result.reflectance == small_result.reflectance);
+    assert(disabled_result.transmittance == small_result.transmittance);
+    assert(disabled_result.absorbed_by_region == small_result.absorbed_by_region);
+    assert(disabled_result.discarded_weight == small_result.discarded_weight);
+    assert(disabled_result.energy_residual == small_result.energy_residual);
+}
+
+void test_ideal_detector_and_detected_path_statistics()
+{
+    auto ideal = simple_problem();
+    ideal.spectra = {{800.0, {{0.0, 0.0, 0.0, 1.5}}}};
+    ideal.detector.enabled = true;
+    ideal.detector.center_mm = {0, 0, -10.001};
+    ideal.detector.axis = {0, 0, 1};
+    ideal.detector.radius_mm = 100.0;
+    ideal.detector.acceptance_half_angle_deg = 90.0;
+    fruitsim::CpuTransportBackend backend;
+    const auto ideal_result = backend.run(ideal).wavelengths.front();
+    // Two refractive interfaces give the incoherent slab/sphere normal-incidence
+    // total R = 2*R0/(1+R0), including internal Fresnel returns.
+    const double expected_total_reflectance = 2.0 * 0.04 / 1.04;
+    assert(std::abs(ideal_result.reflectance - expected_total_reflectance) < 0.005);
+    assert(std::abs(ideal_result.detected_reflectance - ideal_result.reflectance) < 1.0e-3);
+    assert(std::abs(ideal_result.energy_residual) < 1.0e-12);
+
+    auto layered = detector_problem();
+    layered.detector.radius_mm = 4.0;
+    layered.detector.acceptance_half_angle_deg = 90.0;
+    const auto paths = backend.run(layered).wavelengths.front();
+    assert(paths.detected_weight > 0.0);
+    assert(paths.detected_reflectance <= paths.reflectance + 1.0e-12);
+    assert(paths.detected_penetration_mean_mm >= 0.0);
+    assert(paths.detected_penetration_median_mm >= 0.0);
+    assert(paths.skin_path_fraction >= 0.0 && paths.skin_path_fraction <= 1.0);
+    assert(paths.flesh_path_fraction >= 0.0 && paths.flesh_path_fraction <= 1.0);
+    assert(std::abs(paths.skin_path_fraction + paths.flesh_path_fraction - 1.0) < 1.0e-10);
+}
+
+void test_detector_thread_determinism()
+{
+    auto problem = detector_problem();
+    fruitsim::CpuTransportBackend backend;
+    problem.execution.threads = 1;
+    const auto serial = backend.run(problem).wavelengths.front();
+    problem.execution.threads = 4;
+    const auto parallel = backend.run(problem).wavelengths.front();
+    assert(serial.detected_photon_count == parallel.detected_photon_count);
+    assert(serial.detected_weight == parallel.detected_weight);
+    assert(serial.detected_penetration_mean_mm == parallel.detected_penetration_mean_mm);
+    assert(serial.detected_penetration_median_mm == parallel.detected_penetration_median_mm);
+    assert(serial.skin_path_fraction == parallel.skin_path_fraction);
+    assert(serial.flesh_path_fraction == parallel.flesh_path_fraction);
+}
+
+void test_ring_transport()
+{
+    auto problem = detector_problem();
+    problem.source.type = "ring";
+    problem.source.position_mm = {0, 0, -12};
+    problem.source.ring_plane_normal = {0, 0, 1};
+    problem.source.ring_radius_mm = 3.0;
+    problem.source.ring_width_mm = 1.0;
+    problem.source.spatial_sampling = "uniform_area";
+    problem.source.direction_mode = "aim_at";
+    problem.source.target_mm = {0, 0, 0};
+    problem.execution.photons_per_wavelength = 6000;
+    fruitsim::CpuTransportBackend backend;
+    const auto result = backend.run(problem).wavelengths.front();
+    assert(result.photons == 6000);
+    assert(result.boundary_failures == 0);
+    assert(result.max_event_terminations == 0);
+    assert(std::abs(result.energy_residual) < 1.0e-10);
+}
+
 } // namespace
 
 int main()
@@ -126,5 +287,10 @@ int main()
     test_transport_determinism_and_energy();
     test_beer_lambert();
     test_gaussian_source();
+    test_ring_source_area_sampling();
+    test_detector_filter_monotonicity_and_invariance();
+    test_ideal_detector_and_detected_path_statistics();
+    test_detector_thread_determinism();
+    test_ring_transport();
     return 0;
 }

@@ -1,6 +1,6 @@
 # fruitsim 当前技术链路、参考依据与实现方法
 
-更新日期：2026-08-26
+更新日期：2026-08-30
 
 本文记录仓库当前实际实现，作为代码、论文数据、验证结果和后续实验接入之间的索引。
 `synthetic_golden_delicious_v1` 只用于验证方法和软件流程，不能用于真实苹果 SSC 预测。
@@ -13,13 +13,22 @@
               |
               v
 长格式光学数据（sample、batch、tissue、wavelength、mu_a、mu_s'、SSC、来源）
-              |                                  |
-              |                                  +--> Python 特征构造
-              v                                            |
-版本化 JSON -> SimulationProblem -> CPU/CUDA 标量蒙特卡罗  |
-                                     |                      |
-                                     v                      v
-                   R/T/分层吸收/径向响应/深度/吸收网格 -> ML pipeline
+              |
+              v
+版本化 JSON -> ring/pencil/gaussian launch -> CPU/CUDA 标量蒙特卡罗
+                                               |
+                                               v
+                          skin/flesh 分层传播 -> 苹果表面逃逸
+                                               |
+                         +---------------------+--------------------+
+                         |                                          |
+                         v                                          v
+             总 R/T/A、径向反射和能量守恒             detector 圆盘/NA 接受筛选
+                                                                    |
+                                                                    v
+                                  detected spectrum、depth、skin/flesh path fraction
+                                                                    |
+                                                    （后续接入）ML pipeline
                                                               |
                                                               v
                                      MLR / PLSR / RBF-SVR / RF 比较
@@ -50,11 +59,13 @@ JSON 由 [`src/io/config_loader.cpp`](../src/io/config_loader.cpp) 解析。当�
 - `transport_mode` 当前只能为 `scalar`。偏振未来使用独立状态和内核，不扩大标量光子的状态。
 - 所有材料参数从配置读取；物理公式中不隐藏苹果专用常数。
 
-当前苹果配置 [`configs/golden_delicious_demo.json`](../configs/golden_delicious_demo.json) 是同心
-三层解析球：core 半径 8 mm、flesh 外半径 39 mm、skin 外半径 40 mm，外部空气折射率为
-1.0。组织的 `g=0.90`、`n=1.36` 和当前光学曲线均标记为 `synthetic_assumption`。物理 demo
-使用 500–1000 nm、50 nm 间隔的 11 个波长；ML 合成数据使用 10 nm 间隔的 51 个波长，
-两个波长轴目前不可直接混用。
+当前默认苹果配置 [`configs/golden_delicious_demo.json`](../configs/golden_delicious_demo.json)
+和仪器配置 [`configs/ring_sensor_demo.json`](../configs/ring_sensor_demo.json) 使用同心两层解析球：
+flesh 外半径 39 mm、skin 外半径 40 mm，外部空气折射率为 1.0。`LayeredSphere` 仍允许配置
+core 或更多层，现有折射率验证和测试继续覆盖三层结构。组织的 `g=0.90`、`n=1.36` 和当前
+光学曲线均标记为 `synthetic_assumption`。默认总反射 demo 使用 500–1000 nm、50 nm 间隔的
+11 个波长，ring instrument demo 为缩短演示时间使用 100 nm 间隔的 6 个波长；ML 合成数据使用
+10 nm 间隔的 51 个波长，三个波长轴目前不可直接混用。
 
 ### 2.2 数据表
 
@@ -77,8 +88,9 @@ sample/tissue/wavelength 记录、空 sample/batch ID，以及样本间不完整
 
 | 文件 | 当前含义 |
 | --- | --- |
-| `summary.csv` | 每波长 R、T、各层吸收、丢弃权重、能量残差、batch 标准误和深度分位数 |
-| `detectors.csv` | 逃逸反射光的径向分箱响应；尚不是带孔径/NA/仪器响应的真实探测器 |
+| `summary.csv` | 每波长总 R/T/A、能量残差、全光子深度及新增 instrument 指标 |
+| `detectors.csv` | 保留的全部逃逸反射光径向分箱；不等于中央 detector 响应 |
+| `instrument.csv` | 中央圆形 detector 的接收权重、效率、接收深度及组织路径比例 |
 | `absorption_grid.csv` | 三维网格内沉积的吸收权重；当前不是严格定义的 fluence |
 | `trajectories.csv` | 有上限的调试光子轨迹 |
 | `manifest.json` | 配置、后端、运行时、设备、精度和 synthetic/experimental 溯源 |
@@ -86,14 +98,21 @@ sample/tissue/wavelength 记录、空 sample/batch ID，以及样本间不完整
 能量残差使用 `1 - R - T - sum(A_layer) - discarded`。接受的验证算例要求
 `boundary_failures` 和 `max_event_terminations` 为零。
 
+`scan-ring --ring-radii 1,2,3,5,8,10,12,15` 会保持同一配置、seed 和波长轴，仅改变
+`ring_radius_mm`，输出适合二维 `R(lambda,r)` 分析的长表 `ring_scan.csv`，以及记录配置、seed、
+光子数、半径列表和合成假设的 `ring_scan_manifest.json`。扫描只生成正向响应，不判定所谓最优距离。
+
 ## 3. 蒙特卡罗物理实现
 
 ### 3.1 几何、光源和随机数
 
 - [`src/geometry/layered_sphere.cpp`](../src/geometry/layered_sphere.cpp) 实现由内到外排序的
   同心球组织，查询当前位置组织、相邻界面距离、法线及界面两侧介质。
-- [`src/transport/monte_carlo.cpp`](../src/transport/monte_carlo.cpp) 实现 pencil 和 Gaussian
-  光源。Gaussian 横向位置由 Box–Muller 采样得到。
+- [`src/transport/monte_carlo.cpp`](../src/transport/monte_carlo.cpp) 实现 pencil、Gaussian 和正式
+  ring source。Gaussian 横向位置由 Box–Muller 采样；零宽 ring 均匀采样方位角；有限宽 ring
+  将 `ring_width_mm` 解释为名义半径两侧的总径向宽度，并以
+  `r=sqrt(r_inner²+xi(r_outer²-r_inner²))` 在 annulus 面积上均匀采样。ring 可使用固定方向或
+  `aim_at` 规则逐光子朝向目标点。
 - [`src/core/random.cpp`](../src/core/random.cpp) 实现项目内的 Philox4x32-10 计数型随机流。
   key 由 seed 和波长派生，counter 以 photon ID 为独立流并按抽样次序推进。因此线程调度和
   CPU 线程数不会改变单光子的随机序列。代码采用 Philox 思路和公开常数，没有链接或复制
@@ -104,7 +123,7 @@ sample/tissue/wavelength 记录、空 sample/batch ID，以及样本间不完整
 CPU 金标准位于 [`src/transport/monte_carlo.cpp`](../src/transport/monte_carlo.cpp)，
 CUDA 对应实现在 [`libs/cuda/cuda_backend.cu`](../libs/cuda/cuda_backend.cu)：
 
-1. 从 pencil/Gaussian source 发射，在空气中求与苹果外球的首次交点。
+1. 从 pencil/Gaussian/ring source 发射，在空气中求与苹果外球的首次交点。
 2. 空气—苹果入射面的镜面反射使用确定性权重分裂：`R_specular` 计入反射，其余权重折射入射。
 3. 采样无量纲光学深度 `tau=-ln(xi)`，在当前组织内换算距离 `s=tau/(mu_a+mu_s)`。
 4. 若先遇到组织界面，则扣除已经走过的光学深度，在新组织中继续使用剩余 `tau`。
@@ -113,7 +132,9 @@ CUDA 对应实现在 [`libs/cuda/cuda_backend.cu`](../libs/cuda/cuda_backend.cu)
 7. 界面处根据 Snell 定律判断折射/全反射，以非偏振 Fresnel
    `R=(R_s+R_p)/2` 随机选择反射或折射。
 8. 权重低于阈值后执行 Russian roulette。事件数达到上限时记入诊断而不静默吞掉光子。
-9. 光子离开外表面后，按相对于源轴的方向分类为反射或透射，并记录径向位置和最大穿透深度。
+9. 每段实际组织传播距离累计到 total/skin/flesh path；最大深度相对于该光子的入射轴计算。
+10. 光子离开外表面后，按该光子的入射轴分类为反射或透射，并记录原有径向响应。
+11. 对反射逃逸分量执行 detector 几何筛选；这一步不消耗随机数且不从 R/T/A 中扣除权重。
 
 `boundary_epsilon` 用于判断几何相等，`boundary_nudge` 用于跨界面后将位置轻推入目标介质，二者
 分离以避免薄层中自相交或跳层。GPU 还使用与浮点 ULP 相容的界面处理。
@@ -124,6 +145,26 @@ CUDA 对应实现在 [`libs/cuda/cuda_backend.cu`](../libs/cuda/cuda_backend.cu)
 - 深度 P50/P90 是直方图分箱中点近似，不是保存全部光子深度后的精确分位数。
 - 标准误来自固定 photon batch 的 R/T 样本；只有一个 batch 时无法估计 batch 间方差，当前返回 0。
 - 抽样轨迹只用于诊断和 GUI，不应参与统计推断。
+
+中央 detector 是一个平面圆盘，`axis` 从 detector 指向样品。逃逸光线首先与 detector 平面
+求交，交点必须在 `radius_mm` 内，同时传播方向必须落在 `-axis` 周围的 acceptance cone 中。
+配置可给 `acceptance_half_angle_deg`，或给 exterior medium 中的 `numerical_aperture`，后者按
+`theta=asin(NA/n_exterior)` 转换。当前不模拟 detector 对照明的遮挡。
+
+`detected_weight` 是通过筛选的 packet 权重原始和；`detected_photon_count` 是被接受的 packet
+贡献数量，仅作辅助。单位权重发射下：
+
+```text
+detection_efficiency = detected_weight / launched_photons
+detected_reflectance = detected_weight / launched_photons
+```
+
+两者当前数值相等，分别保留“仪器效率”和“收集反射率”语义。接收深度均值按 detected weight
+加权，中位数由权重直方图估计。`skin_path_fraction` 和 `flesh_path_fraction` 是接收权重加权的
+该组织累计路程除以全部组织累计路程；有可选 core 时两者之和可以小于 1。
+
+必须区分 `penetration_q50/q90` 与 `detected_penetration_*`：前者统计全部发射 packet，后者只统计
+被当前 detector 几何接收的光。只有后者能回答该 source-detector 结构的实际 sampling depth。
 
 ### 3.4 CPU 并行
 
@@ -142,6 +183,7 @@ batch 边界。
 - batch 回传后在主机固定顺序归约，因此同一 GPU、seed 和配置可重复；CPU/GPU 因浮点路径不同，
   只要求统计一致，不要求逐光子一致。
 - 设备名称、compute capability、驱动/runtime/toolkit、block size、精度和边界 nudge 会写入 manifest。
+- CUDA 实现同样执行 ring sampling、圆盘/acceptance 筛选和接收路径累计；不会静默忽略 detector。
 
 当前性能瓶颈是每光子的标量结果需要 device-to-host 回传；尚未实现 block/device 两级归约、
 CUDA stream 重叠和多 GPU 调度。
@@ -216,7 +258,7 @@ GridSearchCV 的每个内层折；文件名保留是为了接口兼容，后续�
 | runtime | `include/fruitsim/runtime/`、`src/runtime/cpu_backend.cpp` | batch、线程、进度、取消、确定性归约 |
 | CUDA | `libs/cuda/cuda_backend.cu` | GPU 标量光子传输和 tally |
 | IO | `include/fruitsim/io/`、`src/io/` | JSON 配置、CSV/JSON 结果和溯源 |
-| CLI | `apps/fruitsim_cli/main.cpp` | validate、run、devices 命令 |
+| CLI | `apps/fruitsim_cli/main.cpp` | validate、run、scan-ring、devices 命令 |
 | GUI | `apps/fruitsim_gui/main.cpp` | 可选研究工作台 |
 | ML | `python/fruitsim_ml/` | 数据、特征、预处理、训练、模型比较 |
 | schema | `data/schemas/` | 配置和数据契约 |
@@ -242,15 +284,17 @@ GridSearchCV 的每个内层折；文件名保留是为了接口兼容，后续�
 ## 8. 当前验证状态和技术缺口
 
 当前 CPU core/physics 测试通过；CUDA 在 RTX 4060 Laptop GPU 上完成了固定 seed 可重复性和
-12,000 光子的三层球 CPU/GPU 统计一致性测试。20,000 光子 × 11 波长的本机 demo 约 4.09 s，
-能量残差最大绝对值约 `9.53e-6`。这些结果证明当前软件路径能运行，不证明 synthetic 参数代表
-真实 Golden Delicious。
+12,000 光子的三层球 ring/detector CPU/GPU 统计一致性测试。测试还覆盖 annulus 面积采样、
+detector radius/acceptance 单调性、理想大孔径 detector、关闭 detector 后 R/T/A 完全不变、CPU
+线程数确定性及 detector 不影响能量残差。这些结果证明当前软件路径能运行，不证明 synthetic
+参数代表真实 Golden Delicious 或任何真实仪器。
 
 当前需要优先改进：
 
 1. 用可精确提取且带不确定度的分层 Golden Delicious 实测参数替换合成曲线。
 2. 建立逐苹果的 C++ 仿真输出到 Python 样本特征转换器，统一仿真和仪器波长轴。
-3. 实现真实探头几何、孔径/NA、源探距离、入射角、光谱仪响应、暗/白参考校正。
+3. 在现有圆盘/NA 基础上加入光源与 detector 机械遮挡、透镜/光纤传递函数、光谱仪响应、暗/白
+   参考校正和与真实探头坐标的标定。
 4. 建立 MCML/Beer–Lambert/Fresnel 独立回归语料及更广的 CPU/CUDA 置信区间测试。
 5. 实现 CUDA block/device 归约、stream、多 GPU、GPU CI 和可重复性能基准。
 6. 增加 artifact inference、严格兼容性/OOD 检查、预测不确定度和完整 CV 折记录。

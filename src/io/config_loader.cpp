@@ -1,6 +1,7 @@
 #include "fruitsim/io/config_loader.hpp"
 
 #include <fstream>
+#include <cmath>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 
@@ -9,6 +10,7 @@ namespace fruitsim {
 namespace {
 
 using Json = nlohmann::json;
+constexpr double kPi = 3.14159265358979323846;
 
 Vec3 read_vec3(const Json& value, const char* field)
 {
@@ -97,12 +99,73 @@ SimulationProblem load_simulation_config(const std::filesystem::path& path)
 
     const auto& source = root.at("source");
     problem.source.type = source.value("type", std::string{});
-    if (problem.source.type != "pencil" && problem.source.type != "gaussian") {
-        throw std::invalid_argument("source.type must be pencil or gaussian");
+    if (problem.source.type != "pencil" && problem.source.type != "gaussian"
+        && problem.source.type != "ring") {
+        throw std::invalid_argument("source.type must be pencil, gaussian, or ring");
     }
-    problem.source.position_mm = read_vec3(source.at("position_mm"), "source.position_mm");
-    problem.source.direction = read_vec3(source.at("direction"), "source.direction").normalize();
-    problem.source.gaussian_sigma_mm = source.value("sigma_mm", 0.0);
+    if (problem.source.type == "ring") {
+        problem.source.position_mm = read_vec3(source.at("center_mm"), "source.center_mm");
+        problem.source.ring_plane_normal = read_vec3(
+            source.at("plane_normal"), "source.plane_normal").normalize();
+        problem.source.ring_radius_mm = source.at("ring_radius_mm").get<double>();
+        problem.source.ring_width_mm = source.value("ring_width_mm", 0.0);
+        problem.source.direction_mode = source.value("direction_mode", std::string{"fixed"});
+        problem.source.spatial_sampling = source.value(
+            "spatial_sampling",
+            problem.source.ring_width_mm > 0.0 ? std::string{"uniform_area"}
+                                               : std::string{"uniform_azimuth"});
+        if (problem.source.direction_mode == "aim_at") {
+            problem.source.target_mm = read_vec3(
+                source.value("target_mm", Json::array({
+                    problem.domain.center().x(), problem.domain.center().y(),
+                    problem.domain.center().z()})),
+                "source.target_mm");
+            problem.source.direction = (problem.source.target_mm
+                - problem.source.position_mm).normalize();
+        } else {
+            problem.source.direction = read_vec3(
+                source.at("direction"), "source.direction").normalize();
+        }
+    } else {
+        problem.source.position_mm = read_vec3(source.at("position_mm"), "source.position_mm");
+        problem.source.direction = read_vec3(source.at("direction"), "source.direction").normalize();
+        problem.source.gaussian_sigma_mm = source.value("sigma_mm", 0.0);
+    }
+
+    if (root.contains("instrument")) {
+        const auto& instrument = root.at("instrument");
+        if (instrument.contains("detector")) {
+            const auto& detector = instrument.at("detector");
+            problem.detector.enabled = detector.value("enabled", true);
+            problem.detector.type = detector.value("type", std::string{"circular"});
+            problem.detector.center_mm = read_vec3(
+                detector.at("center_mm"), "instrument.detector.center_mm");
+            problem.detector.axis = read_vec3(
+                detector.at("axis"), "instrument.detector.axis").normalize();
+            problem.detector.radius_mm = detector.at("radius_mm").get<double>();
+            const bool has_na = detector.contains("numerical_aperture");
+            const bool has_angle = detector.contains("acceptance_half_angle_deg");
+            if (has_na && has_angle) {
+                throw std::invalid_argument(
+                    "Detector must specify only one of numerical_aperture and "
+                    "acceptance_half_angle_deg");
+            }
+            if (has_na) {
+                problem.detector.numerical_aperture =
+                    detector.at("numerical_aperture").get<double>();
+                const double ratio = problem.detector.numerical_aperture
+                    / problem.exterior_refractive_index;
+                if (ratio < 0.0 || ratio > 1.0) {
+                    throw std::invalid_argument(
+                        "Detector numerical_aperture must be in [0, exterior refractive index]");
+                }
+                problem.detector.acceptance_half_angle_deg = std::asin(ratio) * 180.0 / kPi;
+            } else {
+                problem.detector.acceptance_half_angle_deg = detector.value(
+                    "acceptance_half_angle_deg", 90.0);
+            }
+        }
+    }
 
     const auto& scoring = root.value("scoring", Json::object());
     problem.scoring.radial_bins = scoring.value("radial_bins", std::size_t{32});

@@ -87,8 +87,20 @@ struct DeviceProblem {
     float exterior_refractive_index;
     float3 source_position;
     float3 source_direction;
-    int gaussian_source;
+    int source_type;
     float gaussian_sigma;
+    float3 ring_plane_normal;
+    float ring_radius;
+    float ring_width;
+    int ring_aim_at;
+    float3 ring_target;
+    int detector_enabled;
+    float3 detector_center;
+    float3 detector_axis;
+    float detector_radius;
+    float detector_acceptance_cos;
+    int skin_region;
+    int flesh_region;
     const DeviceOptical* optical;
     std::uint64_t seed;
     std::uint32_t max_events;
@@ -115,6 +127,12 @@ struct DeviceBatchOutput {
     double* absorbed;
     int* reflected_bin;
     unsigned int* depth_bin;
+    unsigned char* entry_detected;
+    unsigned char* exit_detected;
+    float* maximum_depth;
+    float* total_path;
+    float* skin_path;
+    float* flesh_path;
     unsigned char* termination_code;
 };
 
@@ -351,15 +369,37 @@ __device__ void record_trajectory(const DeviceProblem& problem, std::uint64_t ph
     }
 }
 
-__device__ int radial_bin(const DeviceProblem& problem, float3 point, float3 entry)
+__device__ int radial_bin(
+    const DeviceProblem& problem, float3 point, float3 entry, float3 source_axis)
 {
     const float3 offset = sub(point, entry);
     const float3 radial = sub(offset,
-        mul(dot3(offset, problem.source_direction), problem.source_direction));
+        mul(dot3(offset, source_axis), source_axis));
     const float radius = sqrtf(fmaxf(0.0F, dot3(radial, radial)));
     const int bin = static_cast<int>(floorf(
         radius / problem.radial_max * static_cast<float>(problem.radial_bins)));
     return min(problem.radial_bins - 1, max(0, bin));
+}
+
+__device__ bool detector_accepts_device(
+    const DeviceProblem& problem, float3 escape_position, float3 exterior_direction)
+{
+    if (!problem.detector_enabled) return false;
+    const float acceptance_cos = dot3(exterior_direction,
+        mul(-1.0F, problem.detector_axis));
+    if (acceptance_cos + 1.0e-6F < problem.detector_acceptance_cos) return false;
+    const float denominator = dot3(exterior_direction, problem.detector_axis);
+    if (fabsf(denominator) <= 1.0e-12F) return false;
+    const float distance = dot3(sub(problem.detector_center, escape_position),
+        problem.detector_axis) / denominator;
+    if (distance < -problem.boundary_nudge) return false;
+    const float3 hit = add(escape_position,
+        mul(fmaxf(0.0F, distance), exterior_direction));
+    const float3 offset = sub(hit, problem.detector_center);
+    const float3 radial = sub(offset,
+        mul(dot3(offset, problem.detector_axis), problem.detector_axis));
+    return dot3(radial, radial) <= problem.detector_radius * problem.detector_radius
+        + problem.boundary_nudge * problem.boundary_nudge;
 }
 
 __device__ std::size_t grid_index(const DeviceProblem& problem, float3 point)
@@ -390,6 +430,12 @@ __global__ void transport_kernel(DeviceProblem problem, DeviceBatchOutput output
     output.discarded[local] = 0.0;
     output.reflected_bin[local] = -1;
     output.depth_bin[local] = 0;
+    output.entry_detected[local] = 0;
+    output.exit_detected[local] = 0;
+    output.maximum_depth[local] = 0.0F;
+    output.total_path[local] = 0.0F;
+    output.skin_path[local] = 0.0F;
+    output.flesh_path[local] = 0.0F;
     output.termination_code[local] = 0;
     for (int r = 0; r < problem.region_count; ++r) {
         output.absorbed[local * problem.region_count + r] = 0.0;
@@ -397,31 +443,55 @@ __global__ void transport_kernel(DeviceProblem problem, DeviceBatchOutput output
 
     DeviceRng rng{problem.seed, photon_id};
     float3 launch = problem.source_position;
-    if (problem.gaussian_source) {
-        const float3 helper = fabsf(problem.source_direction.z) < 0.999F
+    float3 launch_direction = problem.source_direction;
+    if (problem.source_type == 1) {
+        const float3 helper = fabsf(launch_direction.z) < 0.999F
             ? make_float3(0.0F, 0.0F, 1.0F) : make_float3(1.0F, 0.0F, 0.0F);
-        const float3 source_u = normalized(cross3(helper, problem.source_direction));
-        const float3 source_v = cross3(problem.source_direction, source_u);
+        const float3 source_u = normalized(cross3(helper, launch_direction));
+        const float3 source_v = cross3(launch_direction, source_u);
         const float radius = problem.gaussian_sigma
             * sqrtf(-2.0F * logf(static_cast<float>(rng.uniform_open())));
         const float phi = 2.0F * kPi * static_cast<float>(rng.uniform_open());
         launch = add(launch, add(mul(radius * cosf(phi), source_u),
                                  mul(radius * sinf(phi), source_v)));
+    } else if (problem.source_type == 2) {
+        const float3 normal = problem.ring_plane_normal;
+        const float3 helper = fabsf(normal.z) < 0.999F
+            ? make_float3(0.0F, 0.0F, 1.0F) : make_float3(1.0F, 0.0F, 0.0F);
+        const float3 source_u = normalized(cross3(helper, normal));
+        const float3 source_v = cross3(normal, source_u);
+        const float phi = 2.0F * kPi * static_cast<float>(rng.uniform_open());
+        float radius = problem.ring_radius;
+        if (problem.ring_width > 0.0F) {
+            const float inner = fmaxf(0.0F,
+                problem.ring_radius - 0.5F * problem.ring_width);
+            const float outer = problem.ring_radius + 0.5F * problem.ring_width;
+            radius = sqrtf(inner * inner + static_cast<float>(rng.uniform_open())
+                * (outer * outer - inner * inner));
+        }
+        launch = add(launch, add(mul(radius * cosf(phi), source_u),
+                                 mul(radius * sinf(phi), source_v)));
+        if (problem.ring_aim_at) {
+            launch_direction = normalized(sub(problem.ring_target, launch));
+        }
     }
 
     float3 position{};
     float3 entry_normal{};
-    if (!first_entry(problem, launch, problem.source_direction, position, entry_normal)) {
+    if (!first_entry(problem, launch, launch_direction, position, entry_normal)) {
         output.discarded[local] = 1.0;
         return;
     }
     const float3 entry_position = position;
-    float3 direction = problem.source_direction;
+    float3 direction = launch_direction;
     int region = problem.region_count - 1;
     const float n_inside = problem.optical[region].refractive_index;
     const DeviceFresnel entry_fresnel = fresnel(
         dot3(direction, entry_normal), problem.exterior_refractive_index, n_inside);
     output.entry_reflected[local] = entry_fresnel.reflectance;
+    output.entry_detected[local] = entry_fresnel.reflectance > 0.0F
+        && detector_accepts_device(
+            problem, position, reflected(launch_direction, entry_normal));
     double weight = 1.0 - static_cast<double>(entry_fresnel.reflectance);
     if (weight <= 0.0) return;
     direction = refracted(direction, entry_normal,
@@ -431,6 +501,9 @@ __global__ void transport_kernel(DeviceProblem problem, DeviceBatchOutput output
     record_trajectory(problem, photon_id, event, position, weight, region);
 
     float maximum_depth = 0.0F;
+    float total_path = 0.0F;
+    float skin_path = 0.0F;
+    float flesh_path = 0.0F;
     bool alive = true;
     while (alive && event < problem.max_events) {
         double optical_depth = -log(rng.uniform_open());
@@ -452,9 +525,13 @@ __global__ void transport_kernel(DeviceProblem problem, DeviceBatchOutput output
             const double collision_distance = mu_t > 0.0F
                 ? optical_depth / static_cast<double>(mu_t) : INFINITY;
             if (collision_distance < boundary_distance) {
+                const float traveled = static_cast<float>(collision_distance);
                 position = add(position, mul(static_cast<float>(collision_distance), direction));
+                total_path += traveled;
+                if (region == problem.skin_region) skin_path += traveled;
+                if (region == problem.flesh_region) flesh_path += traveled;
                 maximum_depth = fmaxf(maximum_depth,
-                    fmaxf(0.0F, dot3(sub(position, entry_position), problem.source_direction)));
+                    fmaxf(0.0F, dot3(sub(position, entry_position), launch_direction)));
                 const double absorbed = mu_t > 0.0F
                     ? weight * static_cast<double>(properties.mu_a / mu_t) : 0.0;
                 output.absorbed[local * problem.region_count + region] += absorbed;
@@ -473,6 +550,11 @@ __global__ void transport_kernel(DeviceProblem problem, DeviceBatchOutput output
                 reached_collision = true;
             } else {
                 position = boundary_position;
+                total_path += boundary_distance;
+                if (region == problem.skin_region) skin_path += boundary_distance;
+                if (region == problem.flesh_region) flesh_path += boundary_distance;
+                maximum_depth = fmaxf(maximum_depth,
+                    fmaxf(0.0F, dot3(sub(position, entry_position), launch_direction)));
                 if (mu_t > 0.0F) {
                     optical_depth = fmax(0.0,
                         optical_depth - static_cast<double>(mu_t * boundary_distance));
@@ -495,10 +577,12 @@ __global__ void transport_kernel(DeviceProblem problem, DeviceBatchOutput output
                 position = add(position, mul(problem.boundary_nudge, direction));
                 record_trajectory(problem, photon_id, event, position, weight, region);
                 if (region < 0) {
-                    if (dot3(boundary_normal, problem.source_direction) < 0.0F) {
+                    if (dot3(boundary_normal, launch_direction) < 0.0F) {
                         output.exit_reflected[local] = weight;
                         output.reflected_bin[local] = radial_bin(
-                            problem, boundary_position, entry_position);
+                            problem, boundary_position, entry_position, launch_direction);
+                        output.exit_detected[local] = detector_accepts_device(
+                            problem, boundary_position, direction);
                     } else {
                         output.transmitted[local] = weight;
                     }
@@ -524,6 +608,10 @@ __global__ void transport_kernel(DeviceProblem problem, DeviceBatchOutput output
     const int bin = static_cast<int>(maximum_depth / max_depth * problem.depth_bins);
     output.depth_bin[local] = static_cast<unsigned int>(
         min(problem.depth_bins - 1, max(0, bin)));
+    output.maximum_depth[local] = maximum_depth;
+    output.total_path[local] = total_path;
+    output.skin_path[local] = skin_path;
+    output.flesh_path[local] = flesh_path;
 }
 
 double standard_error(const std::vector<double>& values)
@@ -543,6 +631,25 @@ double histogram_quantile(
     if (total == 0) return 0.0;
     const std::uint64_t target = static_cast<std::uint64_t>(std::ceil(quantile * total));
     std::uint64_t cumulative = 0;
+    for (std::size_t index = 0; index < histogram.size(); ++index) {
+        cumulative += histogram[index];
+        if (cumulative >= target) {
+            return (static_cast<double>(index) + 0.5) / histogram.size() * max_depth;
+        }
+    }
+    return max_depth;
+}
+
+double weighted_histogram_quantile(
+    const std::vector<double>& histogram, double zero_depth_weight,
+    double quantile, double max_depth)
+{
+    const double total = zero_depth_weight
+        + std::accumulate(histogram.begin(), histogram.end(), 0.0);
+    if (total <= 0.0) return 0.0;
+    const double target = quantile * total;
+    if (target <= zero_depth_weight) return 0.0;
+    double cumulative = zero_depth_weight;
     for (std::size_t index = 0; index < histogram.size(); ++index) {
         cumulative += histogram[index];
         if (cumulative >= target) {
@@ -609,9 +716,14 @@ SimulationResult CudaTransportBackend::run(const SimulationProblem& problem,
         {"reduction", "per_photon_fixed_host_order"},
     };
     const std::size_t region_count = problem.domain.layers().size();
+    int skin_region = kExteriorRegion;
+    int flesh_region = kExteriorRegion;
     std::vector<float> radii;
-    for (const auto& layer : problem.domain.layers()) {
+    for (std::size_t index = 0; index < problem.domain.layers().size(); ++index) {
+        const auto& layer = problem.domain.layers()[index];
         radii.push_back(static_cast<float>(layer.outer_radius_mm));
+        if (layer.name == "skin") skin_region = static_cast<int>(index);
+        if (layer.name == "flesh") flesh_region = static_cast<int>(index);
     }
     DeviceBuffer<float> device_radii(radii.size());
     device_radii.copy_from(radii);
@@ -635,6 +747,12 @@ SimulationResult CudaTransportBackend::run(const SimulationProblem& problem,
     DeviceBuffer<double> device_absorbed(largest_batch * region_count);
     DeviceBuffer<int> device_reflected_bin(largest_batch);
     DeviceBuffer<unsigned int> device_depth_bin(largest_batch);
+    DeviceBuffer<unsigned char> device_entry_detected(largest_batch);
+    DeviceBuffer<unsigned char> device_exit_detected(largest_batch);
+    DeviceBuffer<float> device_maximum_depth(largest_batch);
+    DeviceBuffer<float> device_total_path(largest_batch);
+    DeviceBuffer<float> device_skin_path(largest_batch);
+    DeviceBuffer<float> device_flesh_path(largest_batch);
     DeviceBuffer<unsigned char> device_termination_code(largest_batch);
 
     for (std::size_t wavelength_index = 0;
@@ -677,8 +795,23 @@ SimulationResult CudaTransportBackend::run(const SimulationProblem& problem,
             problem.exterior_refractive_index);
         device_problem.source_position = to_float3(problem.source.position_mm);
         device_problem.source_direction = to_float3(problem.source.direction.normalize());
-        device_problem.gaussian_source = problem.source.type == "gaussian";
+        device_problem.source_type = problem.source.type == "gaussian" ? 1
+            : problem.source.type == "ring" ? 2 : 0;
         device_problem.gaussian_sigma = static_cast<float>(problem.source.gaussian_sigma_mm);
+        device_problem.ring_plane_normal = to_float3(
+            problem.source.ring_plane_normal.normalize());
+        device_problem.ring_radius = static_cast<float>(problem.source.ring_radius_mm);
+        device_problem.ring_width = static_cast<float>(problem.source.ring_width_mm);
+        device_problem.ring_aim_at = problem.source.direction_mode == "aim_at";
+        device_problem.ring_target = to_float3(problem.source.target_mm);
+        device_problem.detector_enabled = problem.detector.enabled;
+        device_problem.detector_center = to_float3(problem.detector.center_mm);
+        device_problem.detector_axis = to_float3(problem.detector.axis.normalize());
+        device_problem.detector_radius = static_cast<float>(problem.detector.radius_mm);
+        device_problem.detector_acceptance_cos = static_cast<float>(std::cos(
+            problem.detector.acceptance_half_angle_deg * kPi / 180.0));
+        device_problem.skin_region = skin_region;
+        device_problem.flesh_region = flesh_region;
         device_problem.optical = device_optical.get();
         device_problem.seed = problem.execution.seed + wavelength_index;
         device_problem.max_events = problem.execution.max_events;
@@ -708,8 +841,14 @@ SimulationResult CudaTransportBackend::run(const SimulationProblem& problem,
         result.absorbed_by_region.assign(region_count, 0.0);
         result.radial_reflectance.assign(problem.scoring.radial_bins, 0.0);
         std::vector<std::uint64_t> depth_histogram(problem.scoring.depth_bins, 0);
+        std::vector<double> detected_depth_histogram(problem.scoring.depth_bins, 0.0);
         std::vector<double> batch_reflectance;
         std::vector<double> batch_transmittance;
+        double detected_depth_weighted_sum = 0.0;
+        double detected_total_path_weighted_sum = 0.0;
+        double detected_skin_path_weighted_sum = 0.0;
+        double detected_flesh_path_weighted_sum = 0.0;
+        double detected_zero_depth_weight = 0.0;
 
         for (std::size_t batch_index = 0; batch_index < batch_count; ++batch_index) {
             if (cancel && cancel->load()) break;
@@ -719,6 +858,9 @@ SimulationResult CudaTransportBackend::run(const SimulationProblem& problem,
             DeviceBatchOutput device_output{device_entry_reflected.get(),
                 device_exit_reflected.get(), device_transmitted.get(), device_discarded.get(),
                 device_absorbed.get(), device_reflected_bin.get(), device_depth_bin.get(),
+                device_entry_detected.get(), device_exit_detected.get(),
+                device_maximum_depth.get(),
+                device_total_path.get(), device_skin_path.get(), device_flesh_path.get(),
                 device_termination_code.get()};
             constexpr unsigned int threads = 256;
             const unsigned int blocks = static_cast<unsigned int>((count + threads - 1) / threads);
@@ -733,6 +875,12 @@ SimulationResult CudaTransportBackend::run(const SimulationProblem& problem,
             const auto absorbed_all = device_absorbed.copy_to_host();
             const auto reflected_bins_all = device_reflected_bin.copy_to_host();
             const auto depth_bins_all = device_depth_bin.copy_to_host();
+            const auto entry_detected_all = device_entry_detected.copy_to_host();
+            const auto exit_detected_all = device_exit_detected.copy_to_host();
+            const auto maximum_depths_all = device_maximum_depth.copy_to_host();
+            const auto total_paths_all = device_total_path.copy_to_host();
+            const auto skin_paths_all = device_skin_path.copy_to_host();
+            const auto flesh_paths_all = device_flesh_path.copy_to_host();
             const auto termination_codes_all = device_termination_code.copy_to_host();
             double batch_r = 0.0;
             double batch_t = 0.0;
@@ -746,6 +894,22 @@ SimulationResult CudaTransportBackend::run(const SimulationProblem& problem,
                 if (reflected_bins_all[local] >= 0) {
                     result.radial_reflectance[static_cast<std::size_t>(
                         reflected_bins_all[local])] += exit_reflected;
+                }
+                if (entry_detected_all[local]) {
+                    ++result.detected_photon_count;
+                    result.detected_weight += entry_reflected;
+                    detected_zero_depth_weight += entry_reflected;
+                }
+                if (exit_detected_all[local]) {
+                    ++result.detected_photon_count;
+                    result.detected_weight += exit_reflected;
+                    const double depth = maximum_depths_all[local];
+                    detected_depth_weighted_sum += exit_reflected * depth;
+                    if (depth <= 0.0) detected_zero_depth_weight += exit_reflected;
+                    else detected_depth_histogram[depth_bins_all[local]] += exit_reflected;
+                    detected_total_path_weighted_sum += exit_reflected * total_paths_all[local];
+                    detected_skin_path_weighted_sum += exit_reflected * skin_paths_all[local];
+                    detected_flesh_path_weighted_sum += exit_reflected * flesh_paths_all[local];
                 }
                 ++depth_histogram[depth_bins_all[local]];
                 if (termination_codes_all[local] == 1) ++result.boundary_failures;
@@ -782,6 +946,22 @@ SimulationResult CudaTransportBackend::run(const SimulationProblem& problem,
         const double max_depth = 2.0 * problem.domain.outer_radius_mm();
         result.penetration_q50_mm = histogram_quantile(depth_histogram, 0.5, max_depth);
         result.penetration_q90_mm = histogram_quantile(depth_histogram, 0.9, max_depth);
+        if (result.photons > 0) {
+            result.detection_efficiency = result.detected_weight / result.photons;
+            result.detected_reflectance = result.detection_efficiency;
+        }
+        if (result.detected_weight > 0.0) {
+            result.detected_penetration_mean_mm = detected_depth_weighted_sum
+                / result.detected_weight;
+            result.detected_penetration_median_mm = weighted_histogram_quantile(
+                detected_depth_histogram, detected_zero_depth_weight, 0.5, max_depth);
+        }
+        if (detected_total_path_weighted_sum > 0.0) {
+            result.skin_path_fraction = detected_skin_path_weighted_sum
+                / detected_total_path_weighted_sum;
+            result.flesh_path_fraction = detected_flesh_path_weighted_sum
+                / detected_total_path_weighted_sum;
+        }
 
         if (trajectory_capacity > 0) {
             const auto count_value = device_trajectory_count.copy_to_host();
