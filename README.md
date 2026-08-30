@@ -26,8 +26,38 @@ off by default.
   --output results/golden_delicious_demo
 ```
 
-Outputs include `summary.csv`, `detectors.csv`, `absorption_grid.csv`, `trajectories.csv` and
-`manifest.json`. Use `--photons`, `--seed`, `--threads` and `--backend` for controlled overrides.
+Outputs include `summary.csv`, radial `detectors.csv`, instrument `instrument.csv`, optional
+`absorption_grid.csv`, `trajectories.csv` and `manifest.json`. Use `--photons`, `--seed`, `--threads`
+and `--backend` for controlled overrides.
+
+## Ring illumination and central sensor
+
+The instrument demo uses a formal annular source, a two-layer flesh/skin sphere and a coaxial
+circular detector with an aperture and acceptance cone:
+
+```text
+ring illumination -> layered skin/flesh transport -> surface escape
+                  -> detector disk/acceptance filtering -> detected spectrum/path statistics
+```
+
+```bash
+./build/apps/fruitsim_cli/fruitsim_cli run \
+  --config configs/ring_sensor_demo.json \
+  --output results/ring_sensor_demo --photons 20000 --backend cpu
+
+./build/apps/fruitsim_cli/fruitsim_cli scan-ring \
+  --config configs/ring_sensor_demo.json \
+  --ring-radii 1,2,3,5,8,10,12,15 \
+  --output results/ring_radius_scan --photons 10000 --backend cpu
+```
+
+`ring_scan.csv` is long-form in `(ring_radius_mm, wavelength_nm)` for direct `R(lambda, r)` analysis;
+`ring_scan_manifest.json` records the seed, photon count, radii and demo assumptions.
+`detection_efficiency = detected_weight / launched_photons`; detector collection observes escaped
+weight and is never subtracted from R/T/A. Detected penetration/path statistics describe only light
+accepted by this instrument geometry and are not interchangeable with all-photon penetration depth.
+All bundled instrument dimensions and optical properties are simulation assumptions, not calibrated
+hardware data.
 
 ## Generate data and compare SSC models
 
@@ -60,8 +90,8 @@ cmake -S . -B build-cuda \
 cmake --build build-cuda --parallel
 ctest --test-dir build-cuda --output-on-failure
 ./build-cuda/apps/fruitsim_cli/fruitsim_cli run \
-  --config configs/golden_delicious_demo.json \
-  --output results/golden_delicious_cuda --backend cuda
+  --config configs/ring_sensor_demo.json \
+  --output results/ring_sensor_cuda --photons 2000 --backend cuda
 ```
 
 The GUI uses pinned Dear ImGui, ImPlot and GLFW sources. The CUDA scalar backend implements the same

@@ -6,10 +6,15 @@
 #endif
 
 #include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <memory>
+#include <nlohmann/json.hpp>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -21,6 +26,7 @@ struct Arguments {
     std::uint64_t seed = 0;
     std::size_t threads = 0;
     std::string backend;
+    std::vector<double> ring_radii_mm;
 };
 
 void usage()
@@ -28,6 +34,8 @@ void usage()
     std::cout
         << "fruitsim_cli run --config FILE [--output DIR] [--photons N] [--seed N] "
            "[--threads N] [--backend cpu|cuda]\n"
+        << "fruitsim_cli scan-ring --config FILE --ring-radii 1,2,3,5,8,10,12,15 "
+           "[--output DIR] [--photons N] [--backend cpu|cuda]\n"
         << "fruitsim_cli validate --config FILE\n"
         << "fruitsim_cli devices\n";
 }
@@ -49,9 +57,29 @@ Arguments parse_arguments(int argc, char** argv)
         else if (option == "--seed") args.seed = std::stoull(value());
         else if (option == "--threads") args.threads = std::stoull(value());
         else if (option == "--backend") args.backend = value();
+        else if (option == "--ring-radii") {
+            std::stringstream values(value());
+            std::string item;
+            while (std::getline(values, item, ',')) {
+                const double radius = std::stod(item);
+                if (radius <= 0.0) {
+                    throw std::invalid_argument("Ring radii must be positive");
+                }
+                args.ring_radii_mm.push_back(radius);
+            }
+        }
         else throw std::invalid_argument("Unknown option: " + option);
     }
     return args;
+}
+
+std::unique_ptr<fruitsim::ITransportBackend> make_backend(const std::string& name)
+{
+    if (name == "cpu") return std::make_unique<fruitsim::CpuTransportBackend>();
+#ifdef FRUITSIM_HAS_CUDA
+    if (name == "cuda") return std::make_unique<fruitsim::CudaTransportBackend>();
+#endif
+    throw std::invalid_argument("Requested backend is unavailable: " + name);
 }
 
 } // namespace
@@ -80,7 +108,7 @@ int main(int argc, char** argv)
             std::cout << "configuration is valid: " << args.config << '\n';
             return 0;
         }
-        if (args.command != "run") {
+        if (args.command != "run" && args.command != "scan-ring") {
             usage();
             throw std::invalid_argument("Unknown command: " + args.command);
         }
@@ -90,15 +118,57 @@ int main(int argc, char** argv)
         if (args.seed > 0) problem.execution.seed = args.seed;
         if (args.threads > 0) problem.execution.threads = args.threads;
         if (!args.backend.empty()) problem.execution.backend = args.backend;
-        std::unique_ptr<fruitsim::ITransportBackend> backend;
-        if (problem.execution.backend == "cpu") {
-            backend = std::make_unique<fruitsim::CpuTransportBackend>();
-#ifdef FRUITSIM_HAS_CUDA
-        } else if (problem.execution.backend == "cuda") {
-            backend = std::make_unique<fruitsim::CudaTransportBackend>();
-#endif
-        } else {
-            throw std::invalid_argument("Requested backend is unavailable: " + problem.execution.backend);
+        auto backend = make_backend(problem.execution.backend);
+        if (args.command == "scan-ring") {
+            if (problem.source.type != "ring") {
+                throw std::invalid_argument("scan-ring requires source.type=ring");
+            }
+            if (args.ring_radii_mm.empty()) {
+                throw std::invalid_argument("scan-ring requires --ring-radii");
+            }
+            std::filesystem::create_directories(args.output);
+            std::ofstream scan(args.output / "ring_scan.csv");
+            if (!scan) throw std::runtime_error("Cannot create ring_scan.csv");
+            scan << std::setprecision(12)
+                 << "ring_radius_mm,wavelength_nm,launched_photons,detected_photon_count,"
+                    "detected_weight,detection_efficiency,detected_reflectance,"
+                    "detected_penetration_mean_mm,detected_penetration_median_mm,"
+                    "skin_path_fraction,flesh_path_fraction\n";
+            for (const double radius : args.ring_radii_mm) {
+                problem.source.ring_radius_mm = radius;
+                problem.validate();
+                const auto scan_result = backend->run(problem);
+                for (const auto& wavelength : scan_result.wavelengths) {
+                    scan << radius << ',' << wavelength.wavelength_nm << ','
+                         << wavelength.photons << ',' << wavelength.detected_photon_count << ','
+                         << wavelength.detected_weight << ',' << wavelength.detection_efficiency
+                         << ',' << wavelength.detected_reflectance << ','
+                         << wavelength.detected_penetration_mean_mm << ','
+                         << wavelength.detected_penetration_median_mm << ','
+                         << wavelength.skin_path_fraction << ','
+                         << wavelength.flesh_path_fraction << '\n';
+                }
+                std::cerr << "completed ring radius " << radius << " mm\n";
+            }
+            nlohmann::json scan_manifest{
+                {"schema_version", 1},
+                {"software", "fruitsim"},
+                {"software_version", "0.4.0"},
+                {"config", args.config.string()},
+                {"backend", problem.execution.backend},
+                {"seed", problem.execution.seed},
+                {"photons_per_wavelength", problem.execution.photons_per_wavelength},
+                {"ring_radii_mm", args.ring_radii_mm},
+                {"instrument_assumption_status", "simulation_demo_assumption"},
+                {"assumptions", problem.metadata.assumptions},
+                {"metric_definition",
+                 "detection_efficiency = detected_weight / launched_photons"},
+            };
+            std::ofstream manifest(args.output / "ring_scan_manifest.json");
+            if (!manifest) throw std::runtime_error("Cannot create ring_scan_manifest.json");
+            manifest << scan_manifest.dump(2) << '\n';
+            std::cout << "ring scan results: " << args.output / "ring_scan.csv" << '\n';
+            return 0;
         }
         std::size_t last_decile = 101;
         const auto result = backend->run(problem, [&](const fruitsim::ProgressUpdate& update) {

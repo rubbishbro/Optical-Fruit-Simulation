@@ -30,9 +30,11 @@ std::size_t grid_index(const SimulationProblem& problem, const Vec3& point)
     return (z * size + y) * size + x;
 }
 
-std::size_t radial_bin(const SimulationProblem& problem, const Vec3& point, const Vec3& entry)
+std::size_t radial_bin(
+    const SimulationProblem& problem, const Vec3& point, const Vec3& entry,
+    const Vec3& source_axis)
 {
-    const Vec3 axis = problem.source.direction.normalize();
+    const Vec3 axis = source_axis.normalize();
     const Vec3 offset = point - entry;
     const Vec3 radial = offset - dot(offset, axis) * axis;
     const double radius = radial.norm();
@@ -65,7 +67,91 @@ double medium_index(
         : spectrum.regions.at(static_cast<std::size_t>(region)).refractive_index;
 }
 
+void score_detector(
+    BatchResult& result, const SimulationProblem& problem, double weight,
+    double maximum_depth_mm, double total_path_mm, double skin_path_mm,
+    double flesh_path_mm)
+{
+    if (weight <= 0.0) return;
+    ++result.detected_photon_count;
+    result.detected_weight += weight;
+    result.detected_depth_weighted_sum += weight * maximum_depth_mm;
+    result.detected_total_path_weighted_sum += weight * total_path_mm;
+    result.detected_skin_path_weighted_sum += weight * skin_path_mm;
+    result.detected_flesh_path_weighted_sum += weight * flesh_path_mm;
+    if (maximum_depth_mm <= 0.0) {
+        result.detected_zero_depth_weight += weight;
+        return;
+    }
+    const double max_depth = 2.0 * problem.domain.outer_radius_mm();
+    const std::size_t bin = std::min(
+        problem.scoring.depth_bins - 1,
+        static_cast<std::size_t>(std::max(0.0, maximum_depth_mm) / max_depth
+            * static_cast<double>(problem.scoring.depth_bins)));
+    result.detected_depth_histogram[bin] += weight;
+}
+
 } // namespace
+
+SourceLaunch sample_source_launch(const PhotonSource& source, CounterRng& rng)
+{
+    SourceLaunch launch{source.position_mm, source.direction.normalize()};
+    if (source.type == "pencil") return launch;
+
+    const Vec3 plane_normal = source.type == "ring"
+        ? source.ring_plane_normal.normalize() : launch.direction;
+    const Vec3 helper = std::abs(plane_normal.z()) < 0.999
+        ? Vec3{0.0, 0.0, 1.0} : Vec3{1.0, 0.0, 0.0};
+    const Vec3 u = cross(helper, plane_normal).normalize();
+    const Vec3 v = cross(plane_normal, u);
+
+    if (source.type == "gaussian") {
+        const double radius = source.gaussian_sigma_mm
+            * std::sqrt(-2.0 * std::log(rng.uniform_open()));
+        const double phi = 2.0 * kPi * rng.uniform_open();
+        launch.position_mm += radius * std::cos(phi) * u
+            + radius * std::sin(phi) * v;
+        return launch;
+    }
+
+    const double phi = 2.0 * kPi * rng.uniform_open();
+    double radius = source.ring_radius_mm;
+    if (source.ring_width_mm > 0.0) {
+        const double inner = std::max(0.0,
+            source.ring_radius_mm - 0.5 * source.ring_width_mm);
+        const double outer = source.ring_radius_mm + 0.5 * source.ring_width_mm;
+        radius = std::sqrt(inner * inner
+            + rng.uniform_open() * (outer * outer - inner * inner));
+    }
+    launch.position_mm += radius * std::cos(phi) * u
+        + radius * std::sin(phi) * v;
+    if (source.direction_mode == "aim_at") {
+        launch.direction = (source.target_mm - launch.position_mm).normalize();
+    }
+    return launch;
+}
+
+bool detector_accepts(
+    const CircularDetector& detector, const Vec3& escape_position_mm,
+    const Vec3& exterior_direction, double epsilon_mm)
+{
+    if (!detector.enabled) return false;
+    const Vec3 axis = detector.axis.normalize();
+    const Vec3 direction = exterior_direction.normalize();
+    const double cosine_limit = std::cos(
+        detector.acceptance_half_angle_deg * kPi / 180.0);
+    if (dot(direction, -axis) + 1.0e-12 < cosine_limit) return false;
+    const double denominator = dot(direction, axis);
+    if (std::abs(denominator) <= 1.0e-14) return false;
+    const double distance = dot(detector.center_mm - escape_position_mm, axis)
+        / denominator;
+    if (distance < -epsilon_mm) return false;
+    const Vec3 hit = escape_position_mm + std::max(0.0, distance) * direction;
+    const Vec3 offset = hit - detector.center_mm;
+    const Vec3 radial = offset - dot(offset, axis) * axis;
+    return radial.squared_norm()
+        <= detector.radius_mm * detector.radius_mm + epsilon_mm * epsilon_mm;
+}
 
 void SimulationProblem::validate() const
 {
@@ -78,10 +164,35 @@ void SimulationProblem::validate() const
     if (source.direction.squared_norm() == 0.0) {
         throw std::invalid_argument("Source direction cannot be zero");
     }
-    if ((source.type != "pencil" && source.type != "gaussian")
+    if ((source.type != "pencil" && source.type != "gaussian" && source.type != "ring")
         || source.gaussian_sigma_mm < 0.0
         || (source.type == "gaussian" && source.gaussian_sigma_mm == 0.0)) {
-        throw std::invalid_argument("Source must be pencil or gaussian with positive sigma");
+        throw std::invalid_argument(
+            "Source must be pencil, gaussian with positive sigma, or ring");
+    }
+    if (source.type == "ring") {
+        if (source.ring_plane_normal.squared_norm() == 0.0
+            || source.ring_radius_mm <= 0.0 || source.ring_width_mm < 0.0
+            || source.ring_width_mm > 2.0 * source.ring_radius_mm) {
+            throw std::invalid_argument(
+                "Ring source requires a nonzero plane normal, positive radius, and width in [0, 2*radius]");
+        }
+        if (source.direction_mode != "fixed" && source.direction_mode != "aim_at") {
+            throw std::invalid_argument("Ring direction_mode must be fixed or aim_at");
+        }
+        if ((source.ring_width_mm == 0.0 && source.spatial_sampling != "uniform_azimuth")
+            || (source.ring_width_mm > 0.0 && source.spatial_sampling != "uniform_area")) {
+            throw std::invalid_argument(
+                "Ring spatial_sampling must be uniform_azimuth for a zero-width ring "
+                "or uniform_area for an annulus");
+        }
+    }
+    if (detector.enabled && (detector.type != "circular"
+        || detector.axis.squared_norm() == 0.0 || detector.radius_mm <= 0.0
+        || detector.acceptance_half_angle_deg < 0.0
+        || detector.acceptance_half_angle_deg > 90.0)) {
+        throw std::invalid_argument(
+            "Enabled detector must be circular with positive radius and acceptance in [0, 90] degrees");
     }
     if (exterior_refractive_index <= 0.0) {
         throw std::invalid_argument("Exterior refractive index must be positive");
@@ -122,31 +233,26 @@ BatchResult simulate_batch(
     result.absorbed.assign(problem.domain.layers().size(), 0.0);
     result.radial_reflectance.assign(problem.scoring.radial_bins, 0.0);
     result.depth_histogram.assign(problem.scoring.depth_bins, 0);
+    result.detected_depth_histogram.assign(problem.scoring.depth_bins, 0.0);
     if (problem.scoring.grid_size > 0) {
         const std::size_t size = problem.scoring.grid_size;
         result.absorption_grid.assign(size * size * size, 0.0);
     }
 
-    const Vec3 source_direction = problem.source.direction.normalize();
-    const Vec3 helper = std::abs(source_direction.z()) < 0.999
-        ? Vec3{0.0, 0.0, 1.0}
-        : Vec3{1.0, 0.0, 0.0};
-    const Vec3 source_u = cross(helper, source_direction).normalize();
-    const Vec3 source_v = cross(source_direction, source_u);
+    int skin_region = kExteriorRegion;
+    int flesh_region = kExteriorRegion;
+    for (std::size_t index = 0; index < problem.domain.layers().size(); ++index) {
+        if (problem.domain.layers()[index].name == "skin") skin_region = static_cast<int>(index);
+        if (problem.domain.layers()[index].name == "flesh") flesh_region = static_cast<int>(index);
+    }
 
     for (std::uint64_t offset = 0; offset < photon_count; ++offset) {
         const std::uint64_t photon_id = first_photon + offset;
         CounterRng rng(problem.execution.seed + wavelength_index, photon_id);
-        Vec3 launch_position = problem.source.position_mm;
-        if (problem.source.type == "gaussian") {
-            const double radius = problem.source.gaussian_sigma_mm
-                * std::sqrt(-2.0 * std::log(rng.uniform_open()));
-            const double phi = 2.0 * kPi * rng.uniform_open();
-            launch_position += radius * std::cos(phi) * source_u
-                + radius * std::sin(phi) * source_v;
-        }
+        const SourceLaunch launch = sample_source_launch(problem.source, rng);
+        const Vec3 source_direction = launch.direction;
         const auto entry = problem.domain.first_entry(
-            Ray{launch_position, source_direction}, problem.execution.boundary_epsilon_mm);
+            Ray{launch.position_mm, source_direction}, problem.execution.boundary_epsilon_mm);
         if (!entry) {
             result.discarded += 1.0;
             continue;
@@ -164,6 +270,11 @@ BatchResult simulate_batch(
             cos_i, problem.exterior_refractive_index, n_inside);
         result.reflected += entry_fresnel.reflectance;
         result.radial_reflectance[0] += entry_fresnel.reflectance;
+        if (entry_fresnel.reflectance > 0.0 && detector_accepts(problem.detector, entry->position,
+                reflect_direction(source_direction, entry->normal_from_current),
+                problem.execution.boundary_epsilon_mm)) {
+            score_detector(result, problem, entry_fresnel.reflectance, 0.0, 0.0, 0.0, 0.0);
+        }
         photon.weight = 1.0 - entry_fresnel.reflectance;
         if (photon.weight <= 0.0) {
             continue;
@@ -176,6 +287,16 @@ BatchResult simulate_batch(
         record_trajectory(result, problem, photon);
 
         double maximum_depth = 0.0;
+        double total_path_length = 0.0;
+        double skin_path_length = 0.0;
+        double flesh_path_length = 0.0;
+        const auto accumulate_path = [&](double distance, int region, const Vec3& endpoint) {
+            total_path_length += distance;
+            if (region == skin_region) skin_path_length += distance;
+            if (region == flesh_region) flesh_path_length += distance;
+            maximum_depth = std::max(maximum_depth,
+                std::max(0.0, dot(endpoint - entry->position, source_direction)));
+        };
         bool alive = true;
         while (alive && photon.event_count < problem.execution.max_events) {
             double optical_depth = -std::log(rng.uniform_open());
@@ -201,9 +322,7 @@ BatchResult simulate_batch(
 
                 if (collision_distance < boundary->distance_mm) {
                     photon.position_mm += collision_distance * photon.direction;
-                    maximum_depth = std::max(
-                        maximum_depth,
-                        std::max(0.0, dot(photon.position_mm - entry->position, source_direction)));
+                    accumulate_path(collision_distance, photon.region, photon.position_mm);
                     const double absorbed = mu_t > 0.0
                         ? photon.weight * properties.mu_a_mm_inv / mu_t
                         : 0.0;
@@ -224,6 +343,7 @@ BatchResult simulate_batch(
                     reached_collision = true;
                 } else {
                     photon.position_mm = boundary->position;
+                    accumulate_path(boundary->distance_mm, photon.region, photon.position_mm);
                     if (mu_t > 0.0) {
                         optical_depth = std::max(
                             0.0, optical_depth - mu_t * boundary->distance_mm);
@@ -256,7 +376,13 @@ BatchResult simulate_batch(
                         if (reflected) {
                             result.reflected += photon.weight;
                             result.radial_reflectance[radial_bin(
-                                problem, boundary->position, entry->position)] += photon.weight;
+                                problem, boundary->position, entry->position,
+                                source_direction)] += photon.weight;
+                            if (detector_accepts(problem.detector, boundary->position,
+                                    photon.direction, problem.execution.boundary_epsilon_mm)) {
+                                score_detector(result, problem, photon.weight, maximum_depth,
+                                    total_path_length, skin_path_length, flesh_path_length);
+                            }
                         } else {
                             result.transmitted += photon.weight;
                         }

@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "session": {
-    "id": "golden_delicious_scalar_demo",
+    "id": "golden_delicious_ring_sensor_demo",
     "cultivar": "Golden Delicious",
-    "dataset_id": "synthetic_golden_delicious_v1",
+    "dataset_id": "synthetic_ring_instrument_v1",
     "source_type": "synthetic",
     "transport_mode": "scalar",
     "photons_per_wavelength": 20000,
@@ -15,10 +15,10 @@
     "boundary_epsilon_mm": 1e-7,
     "backend": "cpu",
     "assumptions": [
-      "Method demonstration only; not valid for real apple SSC prediction",
-      "Default surface-reflectance model uses a two-layer flesh plus 1 mm skin sphere",
-      "Spectral ranges are literature-constrained but individual values are synthetic",
-      "All tissues use g=0.90 and refractive_index=1.36 due to missing matched measurements"
+      "Instrument geometry is a simulation demo assumption, not a calibrated device",
+      "Two-layer 1 mm skin plus flesh sphere; no core is used in this demo",
+      "Optical coefficients, g=0.90, and refractive_index=1.36 are synthetic assumptions",
+      "Detector axis points from the detector toward the apple surface"
     ]
   },
   "domain": {
@@ -31,49 +31,49 @@
     ]
   },
   "source": {
-    "type": "pencil",
-    "position_mm": [0.0, 0.0, -45.0],
-    "direction": [0.0, 0.0, 1.0]
+    "type": "ring",
+    "center_mm": [0.0, 0.0, -45.0],
+    "plane_normal": [0.0, 0.0, 1.0],
+    "ring_radius_mm": 5.0,
+    "ring_width_mm": 0.5,
+    "direction_mode": "aim_at",
+    "target_mm": [0.0, 0.0, 0.0],
+    "spatial_sampling": "uniform_area"
+  },
+  "instrument": {
+    "detector": {
+      "enabled": true,
+      "type": "circular",
+      "center_mm": [0.0, 0.0, -40.2],
+      "axis": [0.0, 0.0, 1.0],
+      "radius_mm": 1.0,
+      "numerical_aperture": 0.5
+    }
   },
   "roulette": {"threshold": 0.0001, "survival_probability": 0.1},
   "scoring": {
     "radial_bins": 40,
     "radial_max_mm": 40.0,
-    "grid_size": 21,
+    "grid_size": 0,
     "depth_bins": 80,
-    "trajectory_limit": 8
+    "trajectory_limit": 4
   },
   "spectra": [
     {"wavelength_nm": 500, "regions": {
       "flesh": {"mu_a_mm_inv": 0.0360, "mu_s_prime_mm_inv": 1.000, "g": 0.90, "refractive_index": 1.36},
       "skin": {"mu_a_mm_inv": 0.0600, "mu_s_prime_mm_inv": 1.200, "g": 0.90, "refractive_index": 1.36}}},
-    {"wavelength_nm": 550, "regions": {
-      "flesh": {"mu_a_mm_inv": 0.0300, "mu_s_prime_mm_inv": 0.995, "g": 0.90, "refractive_index": 1.36},
-      "skin": {"mu_a_mm_inv": 0.0500, "mu_s_prime_mm_inv": 1.190, "g": 0.90, "refractive_index": 1.36}}},
     {"wavelength_nm": 600, "regions": {
       "flesh": {"mu_a_mm_inv": 0.0250, "mu_s_prime_mm_inv": 0.990, "g": 0.90, "refractive_index": 1.36},
       "skin": {"mu_a_mm_inv": 0.0440, "mu_s_prime_mm_inv": 1.180, "g": 0.90, "refractive_index": 1.36}}},
-    {"wavelength_nm": 650, "regions": {
-      "flesh": {"mu_a_mm_inv": 0.0220, "mu_s_prime_mm_inv": 0.985, "g": 0.90, "refractive_index": 1.36},
-      "skin": {"mu_a_mm_inv": 0.0420, "mu_s_prime_mm_inv": 1.170, "g": 0.90, "refractive_index": 1.36}}},
     {"wavelength_nm": 700, "regions": {
       "flesh": {"mu_a_mm_inv": 0.0270, "mu_s_prime_mm_inv": 0.980, "g": 0.90, "refractive_index": 1.36},
       "skin": {"mu_a_mm_inv": 0.0520, "mu_s_prime_mm_inv": 1.160, "g": 0.90, "refractive_index": 1.36}}},
-    {"wavelength_nm": 750, "regions": {
-      "flesh": {"mu_a_mm_inv": 0.0190, "mu_s_prime_mm_inv": 0.975, "g": 0.90, "refractive_index": 1.36},
-      "skin": {"mu_a_mm_inv": 0.0360, "mu_s_prime_mm_inv": 1.150, "g": 0.90, "refractive_index": 1.36}}},
     {"wavelength_nm": 800, "regions": {
       "flesh": {"mu_a_mm_inv": 0.0170, "mu_s_prime_mm_inv": 0.970, "g": 0.90, "refractive_index": 1.36},
       "skin": {"mu_a_mm_inv": 0.0330, "mu_s_prime_mm_inv": 1.140, "g": 0.90, "refractive_index": 1.36}}},
-    {"wavelength_nm": 850, "regions": {
-      "flesh": {"mu_a_mm_inv": 0.0160, "mu_s_prime_mm_inv": 0.965, "g": 0.90, "refractive_index": 1.36},
-      "skin": {"mu_a_mm_inv": 0.0310, "mu_s_prime_mm_inv": 1.130, "g": 0.90, "refractive_index": 1.36}}},
     {"wavelength_nm": 900, "regions": {
       "flesh": {"mu_a_mm_inv": 0.0180, "mu_s_prime_mm_inv": 0.960, "g": 0.90, "refractive_index": 1.36},
       "skin": {"mu_a_mm_inv": 0.0340, "mu_s_prime_mm_inv": 1.120, "g": 0.90, "refractive_index": 1.36}}},
-    {"wavelength_nm": 950, "regions": {
-      "flesh": {"mu_a_mm_inv": 0.0290, "mu_s_prime_mm_inv": 0.955, "g": 0.90, "refractive_index": 1.36},
-      "skin": {"mu_a_mm_inv": 0.0480, "mu_s_prime_mm_inv": 1.110, "g": 0.90, "refractive_index": 1.36}}},
     {"wavelength_nm": 1000, "regions": {
       "flesh": {"mu_a_mm_inv": 0.0230, "mu_s_prime_mm_inv": 0.950, "g": 0.90, "refractive_index": 1.36},
       "skin": {"mu_a_mm_inv": 0.0410, "mu_s_prime_mm_inv": 1.100, "g": 0.90, "refractive_index": 1.36}}}
