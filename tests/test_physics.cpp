@@ -42,6 +42,14 @@ void test_geometry()
     assert(sphere.region_at({3, 0, 0}) == 1);
     assert(sphere.region_at({9.5, 0, 0}) == 2);
     assert(sphere.region_at({11, 0, 0}) == fruitsim::kExteriorRegion);
+    assert(close(sphere.depth_from_outer_surface({0, 0, 10}), 0.0));
+    assert(close(sphere.depth_from_outer_surface({0, 0, 6}), 4.0));
+    assert(close(sphere.depth_from_outer_surface({0, 0, 0}), 10.0));
+    assert(close(sphere.depth_from_outer_surface({0, 0, 12}), 0.0));
+    assert(close(sphere.maximum_depth_along_segment(
+        {0, 0, -10}, {0, 0, 10}), 10.0));
+    assert(close(sphere.maximum_depth_along_segment(
+        {6, 0, -8}, {6, 0, 8}), 4.0));
     const auto entry = sphere.first_entry({{0, 0, -12}, {0, 0, 1}});
     assert(entry);
     assert(close(entry->distance_mm, 2.0));
@@ -152,6 +160,59 @@ void test_ring_source_area_sampling()
     assert(std::abs(mean_radius_squared - 26.0) < 0.12);
 }
 
+void test_ring_uniform_azimuth_and_per_sample_aim()
+{
+    fruitsim::PhotonSource source;
+    source.type = "ring";
+    source.position_mm = {2.0, -1.0, -5.0};
+    source.ring_plane_normal = {1.0, 2.0, 3.0};
+    source.ring_radius_mm = 4.0;
+    source.ring_width_mm = 0.0;
+    source.spatial_sampling = "uniform_azimuth";
+    source.direction_mode = "aim_at";
+    source.target_mm = {-3.0, 2.0, 1.0};
+    fruitsim::CounterRng rng{34567, 12};
+    constexpr int samples = 50000;
+    fruitsim::Vec3 mean_offset{};
+    fruitsim::Vec3 first_direction{};
+    for (int index = 0; index < samples; ++index) {
+        const auto launch = fruitsim::sample_source_launch(source, rng);
+        const auto offset = launch.position_mm - source.position_mm;
+        assert(std::abs(offset.norm() - source.ring_radius_mm) < 1.0e-10);
+        assert(std::abs(fruitsim::dot(offset,
+            source.ring_plane_normal.normalize())) < 1.0e-10);
+        const auto expected = (source.target_mm - launch.position_mm).normalize();
+        assert((launch.direction - expected).norm() < 1.0e-12);
+        if (index == 0) first_direction = launch.direction;
+        mean_offset += offset;
+    }
+    mean_offset /= static_cast<double>(samples);
+    assert(mean_offset.norm() < 0.04);
+    const auto another = fruitsim::sample_source_launch(source, rng);
+    assert((another.direction - first_direction).norm() > 1.0e-3);
+}
+
+void test_rotated_detector_and_exterior_na()
+{
+    fruitsim::CircularDetector detector;
+    detector.enabled = true;
+    detector.center_mm = {3.0, -1.0, 4.0};
+    detector.axis = fruitsim::Vec3{1.0, 2.0, 2.0}.normalize();
+    detector.radius_mm = 1.0;
+    detector.acceptance_half_angle_deg = 20.0;
+    const auto axis = detector.axis;
+    const auto tangent = fruitsim::cross(axis, fruitsim::Vec3{0.0, 0.0, 1.0}).normalize();
+    const auto escape = detector.center_mm + 2.0 * axis;
+    assert(fruitsim::detector_accepts(detector, escape, -axis));
+    assert(fruitsim::detector_accepts(detector, escape + 0.5 * tangent, -axis));
+    assert(!fruitsim::detector_accepts(detector, escape + 1.5 * tangent, -axis));
+    assert(!fruitsim::detector_accepts(detector, escape, axis));
+
+    const double angle = fruitsim::detector_acceptance_half_angle_degrees(0.5, 1.33);
+    assert(close(angle, std::asin(0.5 / 1.33) * 180.0
+        / 3.14159265358979323846, 1.0e-12));
+}
+
 fruitsim::SimulationProblem detector_problem()
 {
     fruitsim::SimulationProblem problem{
@@ -226,6 +287,11 @@ void test_ideal_detector_and_detected_path_statistics()
     const double expected_total_reflectance = 2.0 * 0.04 / 1.04;
     assert(std::abs(ideal_result.reflectance - expected_total_reflectance) < 0.005);
     assert(std::abs(ideal_result.detected_reflectance - ideal_result.reflectance) < 1.0e-3);
+    assert(close(ideal_result.detected_weight,
+        ideal_result.detected_specular_weight + ideal_result.detected_diffuse_weight));
+    assert(std::abs(ideal_result.detected_specular_weight
+        / ideal_result.photons - 0.04) < 1.0e-12);
+    assert(ideal_result.detected_diffuse_weight > 0.0);
     assert(std::abs(ideal_result.energy_residual) < 1.0e-12);
 
     auto layered = detector_problem();
@@ -236,6 +302,15 @@ void test_ideal_detector_and_detected_path_statistics()
     assert(paths.detected_reflectance <= paths.reflectance + 1.0e-12);
     assert(paths.detected_penetration_mean_mm >= 0.0);
     assert(paths.detected_penetration_median_mm >= 0.0);
+    assert(paths.detected_penetration_mean_mm <= layered.domain.outer_radius_mm());
+    assert(paths.weighted_mean_total_path_mm >= 0.0);
+    assert(paths.weighted_mean_path_by_region_mm.size() == layered.domain.layers().size());
+    assert(paths.path_fraction_by_region.size() == layered.domain.layers().size());
+    assert(close(paths.detected_weight,
+        paths.detected_specular_weight + paths.detected_diffuse_weight));
+    assert(close(paths.weighted_mean_skin_path_mm
+            + paths.weighted_mean_flesh_path_mm,
+        paths.weighted_mean_total_path_mm));
     assert(paths.skin_path_fraction >= 0.0 && paths.skin_path_fraction <= 1.0);
     assert(paths.flesh_path_fraction >= 0.0 && paths.flesh_path_fraction <= 1.0);
     assert(std::abs(paths.skin_path_fraction + paths.flesh_path_fraction - 1.0) < 1.0e-10);
@@ -251,10 +326,15 @@ void test_detector_thread_determinism()
     const auto parallel = backend.run(problem).wavelengths.front();
     assert(serial.detected_photon_count == parallel.detected_photon_count);
     assert(serial.detected_weight == parallel.detected_weight);
+    assert(serial.detected_specular_weight == parallel.detected_specular_weight);
+    assert(serial.detected_diffuse_weight == parallel.detected_diffuse_weight);
     assert(serial.detected_penetration_mean_mm == parallel.detected_penetration_mean_mm);
     assert(serial.detected_penetration_median_mm == parallel.detected_penetration_median_mm);
     assert(serial.skin_path_fraction == parallel.skin_path_fraction);
     assert(serial.flesh_path_fraction == parallel.flesh_path_fraction);
+    assert(serial.weighted_mean_path_by_region_mm
+        == parallel.weighted_mean_path_by_region_mm);
+    assert(serial.path_fraction_by_region == parallel.path_fraction_by_region);
 }
 
 void test_ring_transport()
@@ -288,6 +368,8 @@ int main()
     test_beer_lambert();
     test_gaussian_source();
     test_ring_source_area_sampling();
+    test_ring_uniform_azimuth_and_per_sample_aim();
+    test_rotated_detector_and_exterior_na();
     test_detector_filter_monotonicity_and_invariance();
     test_ideal_detector_and_detected_path_statistics();
     test_detector_thread_determinism();

@@ -34,8 +34,11 @@ void write_simulation_results(
                "max_event_terminations,energy_residual,"
                "penetration_q50_mm,penetration_q90_mm,launched_photons,"
                "detected_photon_count,detected_weight,detection_efficiency,"
+               "detected_specular_weight,detected_diffuse_weight,"
                "detected_reflectance,detected_penetration_mean_mm,"
-               "detected_penetration_median_mm,skin_path_fraction,flesh_path_fraction";
+               "detected_penetration_median_mm,weighted_mean_total_path_mm,"
+               "weighted_mean_skin_path_mm,weighted_mean_flesh_path_mm,"
+               "skin_path_fraction,flesh_path_fraction";
     for (const auto& layer : problem.domain.layers()) summary << ",absorbed_" << layer.name;
     summary << '\n';
     for (const auto& wavelength : result.wavelengths) {
@@ -49,9 +52,15 @@ void write_simulation_results(
                 << wavelength.energy_residual << ',' << wavelength.penetration_q50_mm << ','
                 << wavelength.penetration_q90_mm << ',' << wavelength.photons << ','
                 << wavelength.detected_photon_count << ',' << wavelength.detected_weight << ','
-                << wavelength.detection_efficiency << ',' << wavelength.detected_reflectance << ','
+                << wavelength.detection_efficiency << ','
+                << wavelength.detected_specular_weight << ','
+                << wavelength.detected_diffuse_weight << ','
+                << wavelength.detected_reflectance << ','
                 << wavelength.detected_penetration_mean_mm << ','
                 << wavelength.detected_penetration_median_mm << ','
+                << wavelength.weighted_mean_total_path_mm << ','
+                << wavelength.weighted_mean_skin_path_mm << ','
+                << wavelength.weighted_mean_flesh_path_mm << ','
                 << wavelength.skin_path_fraction << ',' << wavelength.flesh_path_fraction;
         for (double value : wavelength.absorbed_by_region) summary << ',' << value;
         summary << '\n';
@@ -71,17 +80,50 @@ void write_simulation_results(
 
     auto instrument = output_file(output_directory / "instrument.csv");
     instrument << "wavelength_nm,launched_photons,detected_photon_count,detected_weight,"
+                  "detected_specular_weight,detected_diffuse_weight,"
                   "detection_efficiency,detected_reflectance,"
                   "detected_penetration_mean_mm,detected_penetration_median_mm,"
-                  "skin_path_fraction,flesh_path_fraction\n";
+                  "weighted_mean_total_path_mm,weighted_mean_skin_path_mm,"
+                  "weighted_mean_flesh_path_mm,skin_path_fraction,flesh_path_fraction\n";
     for (const auto& wavelength : result.wavelengths) {
         instrument << wavelength.wavelength_nm << ',' << wavelength.photons << ','
                    << wavelength.detected_photon_count << ',' << wavelength.detected_weight << ','
+                   << wavelength.detected_specular_weight << ','
+                   << wavelength.detected_diffuse_weight << ','
                    << wavelength.detection_efficiency << ',' << wavelength.detected_reflectance << ','
                    << wavelength.detected_penetration_mean_mm << ','
                    << wavelength.detected_penetration_median_mm << ','
+                   << wavelength.weighted_mean_total_path_mm << ','
+                   << wavelength.weighted_mean_skin_path_mm << ','
+                   << wavelength.weighted_mean_flesh_path_mm << ','
                    << wavelength.skin_path_fraction << ',' << wavelength.flesh_path_fraction << '\n';
     }
+
+    auto instrument_regions = output_file(output_directory / "instrument_regions.csv");
+    instrument_regions << "wavelength_nm,region_index,region_name,"
+                          "weighted_mean_path_mm,path_fraction\n";
+    for (const auto& wavelength : result.wavelengths) {
+        for (std::size_t region = 0; region < problem.domain.layers().size(); ++region) {
+            instrument_regions << wavelength.wavelength_nm << ',' << region << ','
+                << problem.domain.layers()[region].name << ','
+                << wavelength.weighted_mean_path_by_region_mm.at(region) << ','
+                << wavelength.path_fraction_by_region.at(region) << '\n';
+        }
+    }
+
+    const std::uint64_t total_photons = std::accumulate(result.wavelengths.begin(),
+        result.wavelengths.end(), std::uint64_t{0},
+        [](std::uint64_t total, const WavelengthResult& wavelength) {
+            return total + wavelength.photons;
+        });
+    const double photons_per_second = result.elapsed_seconds > 0.0
+        ? static_cast<double>(total_photons) / result.elapsed_seconds : 0.0;
+    auto performance = output_file(output_directory / "performance.csv");
+    performance << "backend,wavelength_count,photons_per_wavelength,total_photons,"
+                   "elapsed_seconds,photons_per_second\n"
+                << result.backend << ',' << result.wavelengths.size() << ','
+                << problem.execution.photons_per_wavelength << ',' << total_photons << ','
+                << result.elapsed_seconds << ',' << photons_per_second << '\n';
 
     if (problem.scoring.grid_size > 0) {
         auto grid = output_file(output_directory / "absorption_grid.csv");
@@ -119,7 +161,7 @@ void write_simulation_results(
     nlohmann::json manifest{
         {"schema_version", 1},
         {"software", "fruitsim"},
-        {"software_version", "0.4.0"},
+        {"software_version", "0.5.0"},
         {"session_id", problem.metadata.session_id},
         {"cultivar", problem.metadata.cultivar},
         {"dataset_id", problem.metadata.dataset_id},
@@ -132,6 +174,9 @@ void write_simulation_results(
         {"threads", problem.execution.threads},
         {"photons_per_wavelength", problem.execution.photons_per_wavelength},
         {"elapsed_seconds", result.elapsed_seconds},
+        {"wavelength_count", result.wavelengths.size()},
+        {"total_photons", total_photons},
+        {"photons_per_second", photons_per_second},
         {"instrument_assumption_status",
          problem.detector.enabled ? "simulation_demo_assumption" : "detector_disabled"},
         {"source", {
@@ -159,10 +204,17 @@ void write_simulation_results(
             {"radius_mm", problem.detector.radius_mm},
             {"acceptance_half_angle_deg", problem.detector.acceptance_half_angle_deg},
             {"numerical_aperture", problem.detector.numerical_aperture},
+            {"numerical_aperture_medium_index", problem.exterior_refractive_index},
         }},
         {"detector_metric_definition",
          "detection_efficiency = detected_weight / launched_photons; detector scoring is an "
-         "observation of escaped weight and is not subtracted from R/T/A"},
+         "observation of escaped weight and is not subtracted from R/T/A; detected_weight = "
+         "detected_specular_weight + detected_diffuse_weight"},
+        {"penetration_depth_definition",
+         "maximum along-path geometric inward depth: outer_radius - distance(point, center)"},
+        {"detected_path_definition",
+         "mean region and total path lengths are weighted by detector-arrival packet weight; "
+         "fractions divide each weighted region-path sum by the weighted total-path sum"},
         {"synthetic_warning",
          problem.metadata.source_type == "synthetic"
              ? "METHOD DEMONSTRATION ONLY - NOT VALID FOR REAL APPLE SSC PREDICTION"

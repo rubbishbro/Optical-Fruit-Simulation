@@ -98,10 +98,25 @@ int main()
     assert(cpu.detected_weight > 0.0);
     assert(gpu.detected_weight > 0.0);
     assert(std::abs(cpu.detection_efficiency - gpu.detection_efficiency) < 0.01);
+    assert(std::abs(cpu.detected_specular_weight / cpu.photons
+        - gpu.detected_specular_weight / gpu.photons) < 0.01);
+    assert(std::abs(cpu.detected_diffuse_weight / cpu.photons
+        - gpu.detected_diffuse_weight / gpu.photons) < 0.01);
+    assert(std::abs(gpu.detected_weight
+        - gpu.detected_specular_weight - gpu.detected_diffuse_weight) < 1.0e-8);
     assert(std::abs(cpu.detected_penetration_mean_mm
         - gpu.detected_penetration_mean_mm) <= 2.0);
     assert(std::abs(cpu.skin_path_fraction - gpu.skin_path_fraction) < 0.15);
     assert(std::abs(cpu.flesh_path_fraction - gpu.flesh_path_fraction) < 0.15);
+    assert(cpu.weighted_mean_path_by_region_mm.size()
+        == gpu.weighted_mean_path_by_region_mm.size());
+    for (std::size_t region = 0;
+         region < cpu.weighted_mean_path_by_region_mm.size(); ++region) {
+        assert(std::abs(cpu.weighted_mean_path_by_region_mm[region]
+            - gpu.weighted_mean_path_by_region_mm[region]) < 2.0);
+        assert(std::abs(cpu.path_fraction_by_region[region]
+            - gpu.path_fraction_by_region[region]) < 0.15);
+    }
 
     // Per-photon output followed by fixed host reduction makes scalar CUDA
     // results bitwise repeatable for a fixed device, seed and build.
@@ -112,8 +127,13 @@ int main()
     assert(gpu.radial_reflectance == gpu_repeat.radial_reflectance);
     assert(gpu.detected_photon_count == gpu_repeat.detected_photon_count);
     assert(gpu.detected_weight == gpu_repeat.detected_weight);
+    assert(gpu.detected_specular_weight == gpu_repeat.detected_specular_weight);
+    assert(gpu.detected_diffuse_weight == gpu_repeat.detected_diffuse_weight);
     assert(gpu.detected_penetration_mean_mm == gpu_repeat.detected_penetration_mean_mm);
     assert(gpu.skin_path_fraction == gpu_repeat.skin_path_fraction);
     assert(gpu.flesh_path_fraction == gpu_repeat.flesh_path_fraction);
+    assert(gpu.weighted_mean_path_by_region_mm
+        == gpu_repeat.weighted_mean_path_by_region_mm);
+    assert(gpu.path_fraction_by_region == gpu_repeat.path_fraction_by_region);
     return 0;
 }

@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "session": {
+    "id": "ring_sensor_forward_benchmark",
+    "cultivar": "Golden Delicious",
+    "dataset_id": "synthetic_ring_benchmark_v1",
+    "source_type": "synthetic",
+    "transport_mode": "scalar",
+    "photons_per_wavelength": 20000,
+    "seed": 20260819,
+    "threads": 0,
+    "batch_size": 10000,
+    "max_reduction_batches": 256,
+    "max_events": 100000,
+    "boundary_epsilon_mm": 1e-7,
+    "backend": "cpu",
+    "assumptions": [
+      "Benchmark geometry and optical properties are synthetic simulation assumptions",
+      "One wavelength is used to isolate transport throughput; no hardware runtime is claimed",
+      "Two-layer 1 mm skin plus flesh sphere; no sensor noise or spectral response"
+    ]
+  },
+  "domain": {
+    "type": "layered_sphere",
+    "center_mm": [0.0, 0.0, 0.0],
+    "exterior_refractive_index": 1.0,
+    "layers_inner_to_outer": [
+      {"name": "flesh", "outer_radius_mm": 39.0},
+      {"name": "skin", "outer_radius_mm": 40.0}
+    ]
+  },
+  "source": {
+    "type": "ring",
+    "center_mm": [0.0, 0.0, -45.0],
+    "plane_normal": [0.0, 0.0, 1.0],
+    "ring_radius_mm": 5.0,
+    "ring_width_mm": 0.5,
+    "direction_mode": "aim_at",
+    "target_mm": [0.0, 0.0, 0.0],
+    "spatial_sampling": "uniform_area"
+  },
+  "instrument": {
+    "detector": {
+      "enabled": true,
+      "type": "circular",
+      "center_mm": [0.0, 0.0, -40.2],
+      "axis": [0.0, 0.0, 1.0],
+      "radius_mm": 1.0,
+      "numerical_aperture": 0.5
+    }
+  },
+  "roulette": {"threshold": 0.0001, "survival_probability": 0.1},
+  "scoring": {
+    "radial_bins": 20,
+    "radial_max_mm": 40.0,
+    "grid_size": 0,
+    "depth_bins": 80,
+    "trajectory_limit": 0
+  },
+  "spectra": [
+    {"wavelength_nm": 800, "regions": {
+      "flesh": {"mu_a_mm_inv": 0.0170, "mu_s_prime_mm_inv": 0.970, "g": 0.90, "refractive_index": 1.36},
+      "skin": {"mu_a_mm_inv": 0.0330, "mu_s_prime_mm_inv": 1.140, "g": 0.90, "refractive_index": 1.36}
+    }}
+  ]
+}
