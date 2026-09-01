@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rubbishbro/Optical-Fruit-Simulation/statistical_shape.schema.json",
+  "title": "fruitsim StatisticalFujiShape artifact",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "geometry_type",
+    "length_unit",
+    "cultivar_status",
+    "provenance",
+    "training",
+    "directions",
+    "mean_radius_mm",
+    "pca_modes",
+    "faces"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "geometry_type": {"const": "StatisticalFujiShape"},
+    "length_unit": {"const": "mm"},
+    "cultivar_label_requested": {"type": "string"},
+    "cultivar_status": {"type": "string"},
+    "cultivar_warning": {"type": "string"},
+    "provenance": {
+      "type": "object",
+      "required": ["source_doi", "source_license", "source_archive_md5"]
+    },
+    "training": {
+      "type": "object",
+      "required": ["sample_count", "direction_count", "mode_count", "parameterization"]
+    },
+    "directions": {
+      "type": "array",
+      "minItems": 32,
+      "items": {"$ref": "#/$defs/vec3"}
+    },
+    "mean_radius_mm": {
+      "type": "array",
+      "minItems": 32,
+      "items": {"type": "number", "exclusiveMinimum": 0}
+    },
+    "pca_modes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["index", "eigenvalue_mm2", "explained_variance_ratio", "deformation_mm"]
+      }
+    },
+    "faces": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "prefixItems": [
+          {"type": "integer", "minimum": 0},
+          {"type": "integer", "minimum": 0},
+          {"type": "integer", "minimum": 0}
+        ],
+        "minItems": 3,
+        "maxItems": 3
+      }
+    }
+  },
+  "$defs": {
+    "vec3": {
+      "type": "array",
+      "prefixItems": [{"type": "number"}, {"type": "number"}, {"type": "number"}],
+      "minItems": 3,
+      "maxItems": 3
+    }
+  }
+}

@@ -15,6 +15,16 @@ ctest --test-dir build --output-on-failure
 The first configure downloads pinned nlohmann/json 3.12.0. CUDA, the GUI and practice example are
 off by default.
 
+## Statistical apple shape
+
+`fruitsim_shape` learns a mean radial surface and PCA deformation modes from the 100 aligned apple
+point clouds in Zenodo record 15635995. It produces reproducible closed random meshes through the
+Python and C++ `StatisticalFujiShape` implementations. The source record does not identify cultivar,
+so the requested Fuji label remains explicitly unverified. See
+[`docs/STATISTICAL_FUJI_SHAPE.md`](docs/STATISTICAL_FUJI_SHAPE.md) for download, training, sampling,
+license and modelling limitations. The current Monte Carlo kernel still uses `LayeredSphere`; mesh
+transport and 3D GUI rendering are subsequent stages.
+
 ## Run the apple simulation
 
 ```bash

@@ -1,11 +1,14 @@
 #include "fruitsim/geometry/layered_sphere.hpp"
+#include "fruitsim/geometry/statistical_fuji_shape.hpp"
 #include "fruitsim/optics/optics.hpp"
 #include "fruitsim/runtime/cpu_backend.hpp"
 #include "fruitsim/transport/monte_carlo.hpp"
 
 #include <cassert>
+#include <array>
 #include <cmath>
 #include <numeric>
+#include <vector>
 
 namespace {
 
@@ -57,6 +60,35 @@ void test_geometry()
     const auto next = sphere.next_boundary({{0, 0, -9.9}, {0, 0, 1}}, 2);
     assert(next);
     assert(next->to_region == 1);
+}
+
+void test_statistical_shape_sampling()
+{
+    const std::vector<fruitsim::Vec3> directions{
+        {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1},
+    };
+    fruitsim::StatisticalShapeMode mode;
+    mode.eigenvalue_mm2 = 4.0;
+    mode.explained_variance_ratio = 1.0;
+    mode.deformation_mm = {2, 2, -1, -1, 0.5, 0.5};
+    const std::vector<std::array<std::size_t, 3>> faces{
+        {0, 2, 4}, {2, 1, 4}, {1, 3, 4}, {3, 0, 4},
+        {2, 0, 5}, {1, 2, 5}, {3, 1, 5}, {0, 3, 5},
+    };
+    const fruitsim::StatisticalFujiShape shape(
+        directions, std::vector<double>(6, 40.0), {mode}, faces,
+        "unverified_in_source_record", "10.5281/zenodo.15635995");
+    const auto deformed = shape.sample({1.5});
+    assert(close(deformed.vertices_mm[0].x(), 43.0));
+    assert(close(deformed.vertices_mm[2].y(), 38.5));
+    const auto first = shape.sample_random(123, 7, 1);
+    const auto second = shape.sample_random(123, 7, 1);
+    assert(first.vertices_mm.size() == directions.size());
+    for (std::size_t index = 0; index < first.vertices_mm.size(); ++index) {
+        assert(first.vertices_mm[index].x() == second.vertices_mm[index].x());
+        assert(first.vertices_mm[index].y() == second.vertices_mm[index].y());
+        assert(first.vertices_mm[index].z() == second.vertices_mm[index].z());
+    }
 }
 
 void test_fresnel()
@@ -362,6 +394,7 @@ void test_ring_transport()
 int main()
 {
     test_geometry();
+    test_statistical_shape_sampling();
     test_fresnel();
     test_hg_mean();
     test_transport_determinism_and_energy();

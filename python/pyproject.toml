@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fruitsim-ml"
-version = "0.3.0"
+version = "0.4.0"
 description = "Reproducible SSC modeling companion for fruitsim"
 requires-python = ">=3.10"
 dependencies = [
@@ -17,7 +17,8 @@ dependencies = [
 
 [project.scripts]
 fruitsim-ml = "fruitsim_ml.__main__:main"
+fruitsim-shape = "fruitsim_shape.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["fruitsim_ml*"]
+include = ["fruitsim_ml*", "fruitsim_shape*"]

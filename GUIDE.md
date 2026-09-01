@@ -23,7 +23,9 @@ boundaries are maintained in [`docs/TECHNICAL_CHAIN.md`](docs/TECHNICAL_CHAIN.md
 ## Current architecture
 
 - `core`: vector/ray primitives and counter-based Philox random streams.
-- `geometry`: analytic layered spheres ordered from inner to outer region.
+- `geometry`: analytic layered spheres, plus `StatisticalFujiShape`, a mean radial mesh and PCA
+  deformation modes learned offline from registered point clouds. The latter is not yet a Monte
+  Carlo boundary backend.
 - `optics`: validated optical properties, HG scattering, Snell refraction and unpolarized Fresnel.
 - `transport`: photon state, deterministic batches, absorption and detector tallies.
 - `runtime`: CPU backend with scheduling-independent photon paths and deterministic reduction.

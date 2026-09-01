@@ -263,6 +263,7 @@ GridSearchCV 的每个内层折；文件名保留是为了接口兼容，后续�
 | --- | --- | --- |
 | core | `include/fruitsim/{vec3,ray,random}.hpp`、`src/core/random.cpp` | 数学原语、射线、Philox RNG |
 | geometry | `include/fruitsim/geometry/layered_sphere.hpp`、`src/geometry/` | 同心分层球及界面查询 |
+| statistical shape | `python/fruitsim_shape/`、`statistical_fuji_shape.hpp` | 点云 correspondence、平均形状、PCA modes、可复现随机网格 |
 | optics | `include/fruitsim/optics/optics.hpp`、`src/optics/` | 参数校验、HG、Snell/Fresnel |
 | transport | `include/fruitsim/transport/`、`src/transport/` | 稳定问题/结果类型及 CPU 金标准 |
 | runtime | `include/fruitsim/runtime/`、`src/runtime/cpu_backend.cpp` | batch、线程、进度、取消、确定性归约 |
