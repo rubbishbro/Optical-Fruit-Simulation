@@ -90,6 +90,25 @@ env PYTHONNOUSERSITE=1 PYTHONPATH=python \
 相同模型、seed、mode count 和 sigma clip 会产生相同网格。Python API 还提供
 `ShapeInstance.inset_vertices_mm(thickness)`，可生成简单径向内缩的 skin/flesh 分界面。
 
+### 参数化端到端 3D 测试
+
+`python/tests/random_apple_3d_demo.py` 会执行模型加载、固定 seed 重复性、顶点/三角形、正半径和
+1 mm skin inset 检查，导出 PLY，并打开可旋转缩放的 Matplotlib 3D 窗口：
+
+```bash
+/home/rubbishbro/miniforge3/envs/mamba-torch311/bin/python \
+  python/tests/random_apple_3d_demo.py \
+  --seed 42 --sample-id 0 --modes 8 --sigma-clip 3 \
+  --skin-thickness-mm 1 \
+  --output results/shapes/random_apple_seed42.ply
+```
+
+无图形界面的自动 smoke test 可增加：
+
+```bash
+--no-show --screenshot results/shapes/random_apple_seed42.png
+```
+
 ## 与 Monte Carlo 和 GUI 的关系
 
 当前 `StatisticalFujiShape` 已在 Python 与 C++ geometry 层实现，C++ 可加载 artifact，并使用项目
