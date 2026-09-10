@@ -23,3 +23,4 @@ data/shape_models/generated/
 python/*.egg-info/
 python/**/__pycache__/
 *.joblib
+imgui.ini

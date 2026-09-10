@@ -4,6 +4,13 @@
 workflow for comparing SSC regression models. The bundled Golden Delicious configuration is
 synthetic and is **not valid for real SSC prediction**.
 
+## Repository map
+
+Start with [`docs/REPOSITORY_MAP.md`](docs/REPOSITORY_MAP.md) for the directory responsibilities,
+stable C++ interfaces, current geometry boundary, CLI/ML data flow and the parts that are still
+planned rather than implemented. [`GUIDE.md`](GUIDE.md) contains the full engineering guide and
+[`docs/TECHNICAL_CHAIN.md`](docs/TECHNICAL_CHAIN.md) contains the file-level physical chain.
+
 ## Build and test
 
 ```bash
