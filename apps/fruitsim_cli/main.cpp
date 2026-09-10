@@ -11,6 +11,7 @@
 #include <iostream>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <numeric>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -132,8 +133,15 @@ int main(int argc, char** argv)
             scan << std::setprecision(12)
                  << "ring_radius_mm,wavelength_nm,launched_photons,detected_photon_count,"
                     "detected_weight,detection_efficiency,detected_reflectance,"
+                    "detected_specular_weight,detected_diffuse_weight,"
                     "detected_penetration_mean_mm,detected_penetration_median_mm,"
-                    "skin_path_fraction,flesh_path_fraction\n";
+                    "weighted_mean_total_path_mm,weighted_mean_skin_path_mm,"
+                    "weighted_mean_flesh_path_mm,skin_path_fraction,flesh_path_fraction";
+            for (const auto& layer : problem.domain.layers()) {
+                scan << ",weighted_mean_path_" << layer.name
+                     << "_mm,path_fraction_" << layer.name;
+            }
+            scan << '\n';
             for (const double radius : args.ring_radii_mm) {
                 problem.source.ring_radius_mm = radius;
                 problem.validate();
@@ -143,17 +151,28 @@ int main(int argc, char** argv)
                          << wavelength.photons << ',' << wavelength.detected_photon_count << ','
                          << wavelength.detected_weight << ',' << wavelength.detection_efficiency
                          << ',' << wavelength.detected_reflectance << ','
+                         << wavelength.detected_specular_weight << ','
+                         << wavelength.detected_diffuse_weight << ','
                          << wavelength.detected_penetration_mean_mm << ','
                          << wavelength.detected_penetration_median_mm << ','
+                         << wavelength.weighted_mean_total_path_mm << ','
+                         << wavelength.weighted_mean_skin_path_mm << ','
+                         << wavelength.weighted_mean_flesh_path_mm << ','
                          << wavelength.skin_path_fraction << ','
-                         << wavelength.flesh_path_fraction << '\n';
+                         << wavelength.flesh_path_fraction;
+                    for (std::size_t region = 0;
+                         region < wavelength.weighted_mean_path_by_region_mm.size(); ++region) {
+                        scan << ',' << wavelength.weighted_mean_path_by_region_mm[region]
+                             << ',' << wavelength.path_fraction_by_region[region];
+                    }
+                    scan << '\n';
                 }
                 std::cerr << "completed ring radius " << radius << " mm\n";
             }
             nlohmann::json scan_manifest{
                 {"schema_version", 1},
                 {"software", "fruitsim"},
-                {"software_version", "0.4.0"},
+                {"software_version", "0.5.0"},
                 {"config", args.config.string()},
                 {"backend", problem.execution.backend},
                 {"seed", problem.execution.seed},
@@ -181,8 +200,16 @@ int main(int argc, char** argv)
             }
         });
         fruitsim::write_simulation_results(problem, result, args.output);
+        const std::uint64_t total_photons = std::accumulate(result.wavelengths.begin(),
+            result.wavelengths.end(), std::uint64_t{0},
+            [](std::uint64_t total, const fruitsim::WavelengthResult& wavelength) {
+                return total + wavelength.photons;
+            });
+        const double rate = result.elapsed_seconds > 0.0
+            ? static_cast<double>(total_photons) / result.elapsed_seconds : 0.0;
         std::cout << "completed " << result.wavelengths.size() << " wavelength(s) in "
-                  << result.elapsed_seconds << " s\nresults: " << args.output << '\n';
+                  << result.elapsed_seconds << " s (" << total_photons << " photons, "
+                  << rate << " photons/s)\nresults: " << args.output << '\n';
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "fruitsim_cli: " << error.what() << '\n';

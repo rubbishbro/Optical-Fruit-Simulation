@@ -23,7 +23,9 @@ boundaries are maintained in [`docs/TECHNICAL_CHAIN.md`](docs/TECHNICAL_CHAIN.md
 ## Current architecture
 
 - `core`: vector/ray primitives and counter-based Philox random streams.
-- `geometry`: analytic layered spheres ordered from inner to outer region.
+- `geometry`: analytic layered spheres, plus `StatisticalFujiShape`, a mean radial mesh and PCA
+  deformation modes learned offline from registered point clouds. The latter is not yet a Monte
+  Carlo boundary backend.
 - `optics`: validated optical properties, HG scattering, Snell refraction and unpolarized Fresnel.
 - `transport`: photon state, deterministic batches, absorption and detector tallies.
 - `runtime`: CPU backend with scheduling-independent photon paths and deterministic reduction.
@@ -43,7 +45,8 @@ Henyey–Greenstein phase function, applies stochastic Fresnel reflection/refrac
 low-weight packets with Russian roulette. Results include R/T/A, layer absorption, radial
 reflectance, an optional absorption grid, all-photon penetration quantiles, standard errors and sampled tracks.
 An optional circular detector filters reflected surface escapes by its physical disk and acceptance cone, and
-reports detected weight plus detected-only depth and skin/flesh path fractions without changing R/T/A.
+reports specular/diffuse detected weight, geometry-defined detected depth and generic per-region
+detector-weighted path statistics without changing R/T/A.
 
 Polarization, fluorescence, time-of-flight, voxel geometry and tetrahedral meshes are versioned
 future transport modes. They must not enlarge the scalar `PhotonState`.
@@ -139,6 +142,12 @@ photon count and should not use the smoke-test count.
 The scan writes long-form `ring_scan.csv` plus `ring_scan_manifest.json`. It is a forward parameter
 scan only and does not label any radius optimal.
 
+Detector NA is defined in the exterior medium, `NA=n_exterior*sin(theta_max)`; it never uses a tissue
+index. The detector axis points from detector to sample, so accepted escape directions lie around
+`-axis`. Maximum penetration is `outer_radius-|point-center|` along the path. Entry-surface Fresnel
+and post-entry return are emitted separately as specular and diffuse weights. Generic per-region path
+statistics are detector-arrival-weighted; skin/flesh fields are compatibility projections by name.
+
 ### Python SSC demonstration
 
 ```bash
@@ -206,11 +215,24 @@ records device, compute capability, CUDA driver/runtime/toolkit versions, precis
 boundary nudge and reduction method. The backend is suitable for engineering validation, but the
 synthetic apple inputs still prevent real SSC claims.
 
-The 2026-08-26 full-demo check transported 20,000 photons at each of 11 wavelengths on the RTX 4060
-in about 4.09 s. It produced the spectral summary, radial reflectance response, 21^3 absorption grid and
-bounded trajectories with zero boundary failures, zero maximum-event terminations and a maximum
-absolute energy residual of `9.53e-6`. This is a local validation record, not a portable performance
-benchmark or proof that the synthetic optical properties represent measured apples.
+### Reproducible ring-detector benchmark
+
+Use the single-wavelength smoke/benchmark configuration without assuming a device runtime:
+
+```bash
+./build-cuda/apps/fruitsim_cli/fruitsim_cli run --backend cuda \
+  --config configs/ring_sensor_benchmark.json --photons 20000 \
+  --output results/ring_benchmark_cuda_20k
+./build-cuda/apps/fruitsim_cli/fruitsim_cli run --backend cuda \
+  --config configs/ring_sensor_benchmark.json --photons 100000 \
+  --output results/ring_benchmark_cuda_100k
+./build-cuda/apps/fruitsim_cli/fruitsim_cli run --backend cuda \
+  --config configs/ring_sensor_benchmark.json --photons 1000000 \
+  --output results/ring_benchmark_cuda_1m
+```
+
+Repeat with `--backend cpu` and the CPU executable for comparison. `performance.csv` and
+`manifest.json` record wavelength count, total photons, elapsed seconds and photons/s.
 
 ## Remaining work and improvement priorities
 

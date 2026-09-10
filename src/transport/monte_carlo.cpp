@@ -69,21 +69,27 @@ double medium_index(
 
 void score_detector(
     BatchResult& result, const SimulationProblem& problem, double weight,
-    double maximum_depth_mm, double total_path_mm, double skin_path_mm,
-    double flesh_path_mm)
+    bool specular, double maximum_depth_mm,
+    const std::vector<double>& path_by_region_mm)
 {
     if (weight <= 0.0) return;
     ++result.detected_photon_count;
     result.detected_weight += weight;
+    if (specular) result.detected_specular_weight += weight;
+    else result.detected_diffuse_weight += weight;
     result.detected_depth_weighted_sum += weight * maximum_depth_mm;
+    double total_path_mm = 0.0;
+    for (std::size_t region = 0; region < path_by_region_mm.size(); ++region) {
+        total_path_mm += path_by_region_mm[region];
+        result.detected_path_weighted_sum_by_region[region] +=
+            weight * path_by_region_mm[region];
+    }
     result.detected_total_path_weighted_sum += weight * total_path_mm;
-    result.detected_skin_path_weighted_sum += weight * skin_path_mm;
-    result.detected_flesh_path_weighted_sum += weight * flesh_path_mm;
     if (maximum_depth_mm <= 0.0) {
         result.detected_zero_depth_weight += weight;
         return;
     }
-    const double max_depth = 2.0 * problem.domain.outer_radius_mm();
+    const double max_depth = problem.domain.outer_radius_mm();
     const std::size_t bin = std::min(
         problem.scoring.depth_bins - 1,
         static_cast<std::size_t>(std::max(0.0, maximum_depth_mm) / max_depth
@@ -151,6 +157,18 @@ bool detector_accepts(
     const Vec3 radial = offset - dot(offset, axis) * axis;
     return radial.squared_norm()
         <= detector.radius_mm * detector.radius_mm + epsilon_mm * epsilon_mm;
+}
+
+double detector_acceptance_half_angle_degrees(
+    double numerical_aperture, double exterior_refractive_index)
+{
+    if (exterior_refractive_index <= 0.0 || numerical_aperture < 0.0
+        || numerical_aperture > exterior_refractive_index) {
+        throw std::invalid_argument(
+            "Detector numerical aperture must be in [0, exterior refractive index]");
+    }
+    return std::asin(numerical_aperture / exterior_refractive_index)
+        * 180.0 / kPi;
 }
 
 void SimulationProblem::validate() const
@@ -234,16 +252,11 @@ BatchResult simulate_batch(
     result.radial_reflectance.assign(problem.scoring.radial_bins, 0.0);
     result.depth_histogram.assign(problem.scoring.depth_bins, 0);
     result.detected_depth_histogram.assign(problem.scoring.depth_bins, 0.0);
+    result.detected_path_weighted_sum_by_region.assign(
+        problem.domain.layers().size(), 0.0);
     if (problem.scoring.grid_size > 0) {
         const std::size_t size = problem.scoring.grid_size;
         result.absorption_grid.assign(size * size * size, 0.0);
-    }
-
-    int skin_region = kExteriorRegion;
-    int flesh_region = kExteriorRegion;
-    for (std::size_t index = 0; index < problem.domain.layers().size(); ++index) {
-        if (problem.domain.layers()[index].name == "skin") skin_region = static_cast<int>(index);
-        if (problem.domain.layers()[index].name == "flesh") flesh_region = static_cast<int>(index);
     }
 
     for (std::uint64_t offset = 0; offset < photon_count; ++offset) {
@@ -255,6 +268,7 @@ BatchResult simulate_batch(
             Ray{launch.position_mm, source_direction}, problem.execution.boundary_epsilon_mm);
         if (!entry) {
             result.discarded += 1.0;
+            ++result.depth_histogram[0];
             continue;
         }
         PhotonState photon;
@@ -273,10 +287,11 @@ BatchResult simulate_batch(
         if (entry_fresnel.reflectance > 0.0 && detector_accepts(problem.detector, entry->position,
                 reflect_direction(source_direction, entry->normal_from_current),
                 problem.execution.boundary_epsilon_mm)) {
-            score_detector(result, problem, entry_fresnel.reflectance, 0.0, 0.0, 0.0, 0.0);
+            score_detector(result, problem, entry_fresnel.reflectance, true, 0.0, {});
         }
         photon.weight = 1.0 - entry_fresnel.reflectance;
         if (photon.weight <= 0.0) {
+            ++result.depth_histogram[0];
             continue;
         }
         photon.direction = refract_direction(
@@ -287,15 +302,12 @@ BatchResult simulate_batch(
         record_trajectory(result, problem, photon);
 
         double maximum_depth = 0.0;
-        double total_path_length = 0.0;
-        double skin_path_length = 0.0;
-        double flesh_path_length = 0.0;
+        std::vector<double> path_by_region(problem.domain.layers().size(), 0.0);
         const auto accumulate_path = [&](double distance, int region, const Vec3& endpoint) {
-            total_path_length += distance;
-            if (region == skin_region) skin_path_length += distance;
-            if (region == flesh_region) flesh_path_length += distance;
+            path_by_region.at(static_cast<std::size_t>(region)) += distance;
+            const Vec3 start = endpoint - distance * photon.direction;
             maximum_depth = std::max(maximum_depth,
-                std::max(0.0, dot(endpoint - entry->position, source_direction)));
+                problem.domain.maximum_depth_along_segment(start, endpoint));
         };
         bool alive = true;
         while (alive && photon.event_count < problem.execution.max_events) {
@@ -380,8 +392,8 @@ BatchResult simulate_batch(
                                 source_direction)] += photon.weight;
                             if (detector_accepts(problem.detector, boundary->position,
                                     photon.direction, problem.execution.boundary_epsilon_mm)) {
-                                score_detector(result, problem, photon.weight, maximum_depth,
-                                    total_path_length, skin_path_length, flesh_path_length);
+                                score_detector(result, problem, photon.weight, false,
+                                    maximum_depth, path_by_region);
                             }
                         } else {
                             result.transmitted += photon.weight;
@@ -405,7 +417,7 @@ BatchResult simulate_batch(
             result.discarded += photon.weight;
             ++result.max_event_terminations;
         }
-        const double max_depth = 2.0 * problem.domain.outer_radius_mm();
+        const double max_depth = problem.domain.outer_radius_mm();
         const std::size_t depth_bin = std::min(
             problem.scoring.depth_bins - 1,
             static_cast<std::size_t>(maximum_depth / max_depth

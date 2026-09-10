@@ -18,6 +18,8 @@ prac-raytracing/image.png
 results/
 data/synthetic/*.csv
 data/synthetic/*.manifest.json
+data/external/
+data/shape_models/generated/
 python/*.egg-info/
 python/**/__pycache__/
 *.joblib

@@ -56,9 +56,16 @@
             "enabled": {"type": "boolean"},
             "type": {"const": "circular"},
             "center_mm": {"$ref": "#/$defs/vec3"},
-            "axis": {"$ref": "#/$defs/vec3"},
+            "axis": {
+              "allOf": [{"$ref": "#/$defs/vec3"}],
+              "description": "Detector-plane normal pointing from detector toward sample; accepted light travels around -axis"
+            },
             "radius_mm": {"type": "number", "exclusiveMinimum": 0},
-            "numerical_aperture": {"type": "number", "minimum": 0},
+            "numerical_aperture": {
+              "type": "number",
+              "minimum": 0,
+              "description": "NA in the exterior detector medium: n_exterior*sin(theta_max)"
+            },
             "acceptance_half_angle_deg": {
               "type": "number", "minimum": 0, "maximum": 90
             }

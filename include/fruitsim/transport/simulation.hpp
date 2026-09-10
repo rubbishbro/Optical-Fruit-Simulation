@@ -128,10 +128,18 @@ struct WavelengthResult {
     double penetration_q90_mm = 0.0;
     std::uint64_t detected_photon_count = 0;
     double detected_weight = 0.0;
+    double detected_specular_weight = 0.0;
+    double detected_diffuse_weight = 0.0;
     double detection_efficiency = 0.0;
     double detected_reflectance = 0.0;
     double detected_penetration_mean_mm = 0.0;
     double detected_penetration_median_mm = 0.0;
+    double weighted_mean_total_path_mm = 0.0;
+    std::vector<double> weighted_mean_path_by_region_mm;
+    std::vector<double> path_fraction_by_region;
+    // Compatibility fields derived from the generic region arrays by name.
+    double weighted_mean_skin_path_mm = 0.0;
+    double weighted_mean_flesh_path_mm = 0.0;
     double skin_path_fraction = 0.0;
     double flesh_path_fraction = 0.0;
     std::vector<TrajectoryPoint> trajectories;

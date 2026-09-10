@@ -152,8 +152,8 @@ SimulationResult CpuTransportBackend::run(
         std::vector<double> batch_transmittance;
         double detected_depth_weighted_sum = 0.0;
         double detected_total_path_weighted_sum = 0.0;
-        double detected_skin_path_weighted_sum = 0.0;
-        double detected_flesh_path_weighted_sum = 0.0;
+        std::vector<double> detected_path_weighted_sum_by_region(
+            problem.domain.layers().size(), 0.0);
         double detected_zero_depth_weight = 0.0;
 
         for (const auto& batch : batches) {
@@ -168,10 +168,15 @@ SimulationResult CpuTransportBackend::run(
             result.max_event_terminations += batch.max_event_terminations;
             result.detected_photon_count += batch.detected_photon_count;
             result.detected_weight += batch.detected_weight;
+            result.detected_specular_weight += batch.detected_specular_weight;
+            result.detected_diffuse_weight += batch.detected_diffuse_weight;
             detected_depth_weighted_sum += batch.detected_depth_weighted_sum;
             detected_total_path_weighted_sum += batch.detected_total_path_weighted_sum;
-            detected_skin_path_weighted_sum += batch.detected_skin_path_weighted_sum;
-            detected_flesh_path_weighted_sum += batch.detected_flesh_path_weighted_sum;
+            for (std::size_t region = 0;
+                 region < detected_path_weighted_sum_by_region.size(); ++region) {
+                detected_path_weighted_sum_by_region[region] +=
+                    batch.detected_path_weighted_sum_by_region[region];
+            }
             detected_zero_depth_weight += batch.detected_zero_depth_weight;
             batch_reflectance.push_back(batch.reflected / batch.photon_count);
             batch_transmittance.push_back(batch.transmitted / batch.photon_count);
@@ -207,9 +212,11 @@ SimulationResult CpuTransportBackend::run(
             result.absorbed_by_region.begin(), result.absorbed_by_region.end(), 0.0);
         result.energy_residual = 1.0 - result.reflectance - result.transmittance
             - absorbed - result.discarded_weight;
-        const double max_depth = 2.0 * problem.domain.outer_radius_mm();
+        const double max_depth = problem.domain.outer_radius_mm();
         result.penetration_q50_mm = histogram_quantile(depth_histogram, 0.5, max_depth);
         result.penetration_q90_mm = histogram_quantile(depth_histogram, 0.9, max_depth);
+        result.detected_weight = result.detected_specular_weight
+            + result.detected_diffuse_weight;
         if (result.photons > 0) {
             result.detection_efficiency = result.detected_weight
                 / static_cast<double>(result.photons);
@@ -220,12 +227,32 @@ SimulationResult CpuTransportBackend::run(
                 / result.detected_weight;
             result.detected_penetration_median_mm = weighted_histogram_quantile(
                 detected_depth_histogram, detected_zero_depth_weight, 0.5, max_depth);
+            result.weighted_mean_total_path_mm = detected_total_path_weighted_sum
+                / result.detected_weight;
         }
-        if (detected_total_path_weighted_sum > 0.0) {
-            result.skin_path_fraction = detected_skin_path_weighted_sum
-                / detected_total_path_weighted_sum;
-            result.flesh_path_fraction = detected_flesh_path_weighted_sum
-                / detected_total_path_weighted_sum;
+        result.weighted_mean_path_by_region_mm.assign(
+            problem.domain.layers().size(), 0.0);
+        result.path_fraction_by_region.assign(problem.domain.layers().size(), 0.0);
+        for (std::size_t region = 0; region < problem.domain.layers().size(); ++region) {
+            if (result.detected_weight > 0.0) {
+                result.weighted_mean_path_by_region_mm[region] =
+                    detected_path_weighted_sum_by_region[region] / result.detected_weight;
+            }
+            if (detected_total_path_weighted_sum > 0.0) {
+                result.path_fraction_by_region[region] =
+                    detected_path_weighted_sum_by_region[region]
+                    / detected_total_path_weighted_sum;
+            }
+            if (problem.domain.layers()[region].name == "skin") {
+                result.weighted_mean_skin_path_mm =
+                    result.weighted_mean_path_by_region_mm[region];
+                result.skin_path_fraction = result.path_fraction_by_region[region];
+            }
+            if (problem.domain.layers()[region].name == "flesh") {
+                result.weighted_mean_flesh_path_mm =
+                    result.weighted_mean_path_by_region_mm[region];
+                result.flesh_path_fraction = result.path_fraction_by_region[region];
+            }
         }
         output.wavelengths.push_back(std::move(result));
 

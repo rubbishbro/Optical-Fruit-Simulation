@@ -1,7 +1,7 @@
 #include "fruitsim/io/config_loader.hpp"
+#include "fruitsim/transport/monte_carlo.hpp"
 
 #include <fstream>
-#include <cmath>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 
@@ -10,7 +10,6 @@ namespace fruitsim {
 namespace {
 
 using Json = nlohmann::json;
-constexpr double kPi = 3.14159265358979323846;
 
 Vec3 read_vec3(const Json& value, const char* field)
 {
@@ -153,13 +152,10 @@ SimulationProblem load_simulation_config(const std::filesystem::path& path)
             if (has_na) {
                 problem.detector.numerical_aperture =
                     detector.at("numerical_aperture").get<double>();
-                const double ratio = problem.detector.numerical_aperture
-                    / problem.exterior_refractive_index;
-                if (ratio < 0.0 || ratio > 1.0) {
-                    throw std::invalid_argument(
-                        "Detector numerical_aperture must be in [0, exterior refractive index]");
-                }
-                problem.detector.acceptance_half_angle_deg = std::asin(ratio) * 180.0 / kPi;
+                problem.detector.acceptance_half_angle_deg =
+                    detector_acceptance_half_angle_degrees(
+                        problem.detector.numerical_aperture,
+                        problem.exterior_refractive_index);
             } else {
                 problem.detector.acceptance_half_angle_deg = detector.value(
                     "acceptance_half_angle_deg", 90.0);

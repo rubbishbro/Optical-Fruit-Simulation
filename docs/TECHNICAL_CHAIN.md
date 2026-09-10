@@ -90,7 +90,9 @@ sample/tissue/wavelength 记录、空 sample/batch ID，以及样本间不完整
 | --- | --- |
 | `summary.csv` | 每波长总 R/T/A、能量残差、全光子深度及新增 instrument 指标 |
 | `detectors.csv` | 保留的全部逃逸反射光径向分箱；不等于中央 detector 响应 |
-| `instrument.csv` | 中央圆形 detector 的接收权重、效率、接收深度及组织路径比例 |
+| `instrument.csv` | detector 的总/镜面/漫反射接收权重、效率、接收深度及 skin/flesh 兼容字段 |
+| `instrument_regions.csv` | 任意 region 的 detector-weighted 平均路径和路径比例长表 |
+| `performance.csv` | 后端、波长数、总光子数、耗时与 photons/s |
 | `absorption_grid.csv` | 三维网格内沉积的吸收权重；当前不是严格定义的 fluence |
 | `trajectories.csv` | 有上限的调试光子轨迹 |
 | `manifest.json` | 配置、后端、运行时、设备、精度和 synthetic/experimental 溯源 |
@@ -132,7 +134,9 @@ CUDA 对应实现在 [`libs/cuda/cuda_backend.cu`](../libs/cuda/cuda_backend.cu)
 7. 界面处根据 Snell 定律判断折射/全反射，以非偏振 Fresnel
    `R=(R_s+R_p)/2` 随机选择反射或折射。
 8. 权重低于阈值后执行 Russian roulette。事件数达到上限时记入诊断而不静默吞掉光子。
-9. 每段实际组织传播距离累计到 total/skin/flesh path；最大深度相对于该光子的入射轴计算。
+9. 每段实际组织传播距离按 region index 累计；最大深度由 geometry 定义为沿路径各点的
+   `outer_radius-|point-center|` 最大值；每条直线传播段会检查离球心最近的段内点，而非只检查
+   事件端点，因此无碰撞直穿也不会漏记。该定义与单个 ring photon 的入射方向无关。
 10. 光子离开外表面后，按该光子的入射轴分类为反射或透射，并记录原有径向响应。
 11. 对反射逃逸分量执行 detector 几何筛选；这一步不消耗随机数且不从 R/T/A 中扣除权重。
 
@@ -151,7 +155,10 @@ CUDA 对应实现在 [`libs/cuda/cuda_backend.cu`](../libs/cuda/cuda_backend.cu)
 配置可给 `acceptance_half_angle_deg`，或给 exterior medium 中的 `numerical_aperture`，后者按
 `theta=asin(NA/n_exterior)` 转换。当前不模拟 detector 对照明的遮挡。
 
-`detected_weight` 是通过筛选的 packet 权重原始和；`detected_photon_count` 是被接受的 packet
+`detected_weight` 是通过筛选的 packet 权重原始和；其中入射外表面 Fresnel 权重记为
+`detected_specular_weight`，进入组织后再从入射侧逃逸的权重记为 `detected_diffuse_weight`，且三者满足
+`detected_weight = detected_specular_weight + detected_diffuse_weight`。这里的 diffuse 是 transport
+分类名，表示 bulk-return 分量，并不额外要求至少发生一次散射。`detected_photon_count` 是被接受的 packet
 贡献数量，仅作辅助。单位权重发射下：
 
 ```text
@@ -159,11 +166,14 @@ detection_efficiency = detected_weight / launched_photons
 detected_reflectance = detected_weight / launched_photons
 ```
 
-两者当前数值相等，分别保留“仪器效率”和“收集反射率”语义。接收深度均值按 detected weight
-加权，中位数由权重直方图估计。`skin_path_fraction` 和 `flesh_path_fraction` 是接收权重加权的
-该组织累计路程除以全部组织累计路程；有可选 core 时两者之和可以小于 1。
+两者当前数值相等，分别保留“仪器效率”和“收集反射率”语义。接收深度均值按 detector-arrival
+packet weight 加权，中位数由权重直方图估计。`weighted_mean_path_by_region_mm` 的分母是全部
+detected weight（包含零组织路径的 specular 分量）；`path_fraction_by_region` 的分母是各 region 的
+加权路径总和。`skin_path_fraction` / `flesh_path_fraction` 及对应平均路径只是按 layer 名称从通用数组
+派生的兼容字段；有可选 core 时两者之和可以小于 1。
 
-必须区分 `penetration_q50/q90` 与 `detected_penetration_*`：前者统计全部发射 packet，后者只统计
+全部光子与 detector 光子的最大深度都使用 geometry 的外表面 inward depth，取值为 `[0,R]`。
+必须区分 `penetration_q50/q90` 与 `detected_penetration_*`：前者按 packet count 统计全部发射 packet，后者按
 被当前 detector 几何接收的光。只有后者能回答该 source-detector 结构的实际 sampling depth。
 
 ### 3.4 CPU 并行
@@ -253,6 +263,7 @@ GridSearchCV 的每个内层折；文件名保留是为了接口兼容，后续�
 | --- | --- | --- |
 | core | `include/fruitsim/{vec3,ray,random}.hpp`、`src/core/random.cpp` | 数学原语、射线、Philox RNG |
 | geometry | `include/fruitsim/geometry/layered_sphere.hpp`、`src/geometry/` | 同心分层球及界面查询 |
+| statistical shape | `python/fruitsim_shape/`、`statistical_fuji_shape.hpp` | 点云 correspondence、平均形状、PCA modes、可复现随机网格 |
 | optics | `include/fruitsim/optics/optics.hpp`、`src/optics/` | 参数校验、HG、Snell/Fresnel |
 | transport | `include/fruitsim/transport/`、`src/transport/` | 稳定问题/结果类型及 CPU 金标准 |
 | runtime | `include/fruitsim/runtime/`、`src/runtime/cpu_backend.cpp` | batch、线程、进度、取消、确定性归约 |

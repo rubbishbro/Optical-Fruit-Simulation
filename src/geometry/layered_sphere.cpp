@@ -33,6 +33,23 @@ int LayeredSphere::region_at(const Vec3& point, double tolerance_mm) const
     return kExteriorRegion;
 }
 
+double LayeredSphere::depth_from_outer_surface(const Vec3& point) const
+{
+    return std::clamp(outer_radius_mm() - (point - center_).norm(),
+        0.0, outer_radius_mm());
+}
+
+double LayeredSphere::maximum_depth_along_segment(
+    const Vec3& start, const Vec3& end) const
+{
+    const Vec3 segment = end - start;
+    const double length_squared = segment.squared_norm();
+    if (length_squared == 0.0) return depth_from_outer_surface(start);
+    const double fraction = std::clamp(
+        dot(center_ - start, segment) / length_squared, 0.0, 1.0);
+    return depth_from_outer_surface(start + fraction * segment);
+}
+
 std::vector<double> LayeredSphere::positive_intersections(
     const Ray& ray, double radius_mm, double epsilon_mm) const
 {

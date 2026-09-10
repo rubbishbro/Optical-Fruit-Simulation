@@ -31,6 +31,11 @@ public:
     [[nodiscard]] const Vec3& center() const { return center_; }
     [[nodiscard]] const std::vector<SphereLayer>& layers() const { return layers_; }
     [[nodiscard]] double outer_radius_mm() const { return layers_.back().outer_radius_mm; }
+    // Geometry-defined inward distance from the outer surface. Points outside
+    // the domain report zero; the sphere center reports outer_radius_mm().
+    [[nodiscard]] double depth_from_outer_surface(const Vec3& point) const;
+    [[nodiscard]] double maximum_depth_along_segment(
+        const Vec3& start, const Vec3& end) const;
     [[nodiscard]] int region_at(const Vec3& point, double tolerance_mm = 1.0e-9) const;
     [[nodiscard]] std::optional<BoundaryHit> next_boundary(
         const Ray& ray, int current_region, double epsilon_mm = 1.0e-8) const;

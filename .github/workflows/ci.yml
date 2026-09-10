@@ -28,3 +28,4 @@ jobs:
       - run: pip install ./python
       - run: fruitsim-ml generate-demo --output data/synthetic/synthetic_golden_delicious_smoke.csv --samples 80 --seed 42
       - run: fruitsim-ml train --config configs/ml_smoke_test.json
+      - run: python -m unittest discover -s python/tests -v

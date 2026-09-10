@@ -15,6 +15,16 @@ ctest --test-dir build --output-on-failure
 The first configure downloads pinned nlohmann/json 3.12.0. CUDA, the GUI and practice example are
 off by default.
 
+## Statistical apple shape
+
+`fruitsim_shape` learns a mean radial surface and PCA deformation modes from the 100 aligned apple
+point clouds in Zenodo record 15635995. It produces reproducible closed random meshes through the
+Python and C++ `StatisticalFujiShape` implementations. The source record does not identify cultivar,
+so the requested Fuji label remains explicitly unverified. See
+[`docs/STATISTICAL_FUJI_SHAPE.md`](docs/STATISTICAL_FUJI_SHAPE.md) for download, training, sampling,
+license and modelling limitations. The current Monte Carlo kernel still uses `LayeredSphere`; mesh
+transport and 3D GUI rendering are subsequent stages.
+
 ## Run the apple simulation
 
 ```bash
@@ -26,8 +36,9 @@ off by default.
   --output results/golden_delicious_demo
 ```
 
-Outputs include `summary.csv`, radial `detectors.csv`, instrument `instrument.csv`, optional
-`absorption_grid.csv`, `trajectories.csv` and `manifest.json`. Use `--photons`, `--seed`, `--threads`
+Outputs include `summary.csv`, radial `detectors.csv`, instrument `instrument.csv`, generic
+`instrument_regions.csv`, `performance.csv`, optional `absorption_grid.csv`, `trajectories.csv` and
+`manifest.json`. Use `--photons`, `--seed`, `--threads`
 and `--backend` for controlled overrides.
 
 ## Ring illumination and central sensor
@@ -56,8 +67,17 @@ ring illumination -> layered skin/flesh transport -> surface escape
 `detection_efficiency = detected_weight / launched_photons`; detector collection observes escaped
 weight and is never subtracted from R/T/A. Detected penetration/path statistics describe only light
 accepted by this instrument geometry and are not interchangeable with all-photon penetration depth.
+`detected_weight` is split into entry-surface `detected_specular_weight` and post-entry
+`detected_diffuse_weight`. Penetration is the maximum geometric inward depth
+`outer_radius - |point-center|`, maximized over every full path segment rather than only event
+endpoints, and is not a projection on a photon-specific launch axis. Region path means
+are detector-arrival-weighted, with generic per-region output plus skin/flesh compatibility columns.
 All bundled instrument dimensions and optical properties are simulation assumptions, not calibrated
 hardware data.
+
+For reproducible CPU/CUDA throughput measurements, use `configs/ring_sensor_benchmark.json` with
+`--photons 20000`, `100000`, and `1000000`. Each result records wavelength count, total photons,
+elapsed seconds and photons/s in `performance.csv` and `manifest.json`; no device runtime is assumed.
 
 ## Generate data and compare SSC models
 
