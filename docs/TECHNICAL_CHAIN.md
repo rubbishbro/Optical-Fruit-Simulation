@@ -1,6 +1,6 @@
 # fruitsim 当前技术链路、参考依据与实现方法
 
-更新日期：2026-08-30
+更新日期：2026-09-11
 
 本文记录仓库当前实际实现，作为代码、论文数据、验证结果和后续实验接入之间的索引。
 `synthetic_golden_delicious_v1` 只用于验证方法和软件流程，不能用于真实苹果 SSC 预测。
@@ -12,7 +12,11 @@
 论文元数据 / 后续逐苹果实验数据
               |
               v
-长格式光学数据（sample、batch、tissue、wavelength、mu_a、mu_s'、SSC、来源）
+schema v2 manifest + samples.csv（苹果级 metadata/labels）
+              + spectra.csv（逐波长 observations）
+              |
+              v
+explicit ingest / validation（不插值、不填补、不混入 simulation assumptions）
               |
               v
 版本化 JSON -> ring/pencil/gaussian launch -> CPU/CUDA 标量蒙特卡罗
@@ -67,9 +71,10 @@ core 或更多层，现有折射率验证和测试继续覆盖三层结构。组
 11 个波长，ring instrument demo 为缩短演示时间使用 100 nm 间隔的 6 个波长；ML 合成数据使用
 10 nm 间隔的 51 个波长，三个波长轴目前不可直接混用。
 
-### 2.2 数据表
+### 2.2 数据表与版本
 
-SSC 数据读取和校验位于 [`python/fruitsim_ml/data.py`](../python/fruitsim_ml/data.py)，长表必需字段为：
+schema v1 是 legacy/synthetic-compatible 长表。SSC 数据读取和校验位于
+[`python/fruitsim_ml/data.py`](../python/fruitsim_ml/data.py)，其必需字段为：
 
 ```text
 dataset_id, sample_id, source_type, cultivar, tissue,
@@ -81,6 +86,27 @@ measurement_method, uncertainty, notes
 校验会拒绝缺列、光学/SSC 数值缺失、负光学系数、非法 `g`、重复的
 sample/tissue/wavelength 记录、空 sample/batch ID，以及样本间不完整的共同波长轴。
 当前只检查各组波长数量相同，后续还应检查波长值本身完全一致及单位/schema 版本。
+
+schema v2 是真实实验数据的 canonical contract，定义在
+[`data/schemas/experimental_dataset.schema.json`](../data/schemas/experimental_dataset.schema.json)，
+并由 [`python/fruitsim_ml/datasets/`](../python/fruitsim_ml/datasets/) 加载和验证。它严格分离：
+
+```text
+samples.csv  -> sample_id / measurement_id / SSC / firmness / storage metadata
+spectra.csv  -> wavelength / R / T / mu_a / mu_s'
+manifest     -> paper / provenance / units / available channels / global IAD settings
+```
+
+`measurement_id` 缺失时 loader 只在内存中稳定地使用 `sample_id` 作为内部 key，不修改 raw
+CSV。validator 检查 foreign keys、重复点、实际 wavelength grid、单调性、R/T 范围、光学系数
+非负性以及 manifest channel availability；不自动插值，也不把缺失值填为 0。`g`、折射率和
+其他 IAD 设置缺失不会使实验表失效，因为它们不是默认的实验观测字段。所有单位转换必须由
+显式 ingest mapping 负责并记录 provenance。
+
+当前为下一阶段 ML 预留的 feature modalities 是：
+`reflectance`、`transmittance`、`mu_a`、`mu_s_prime`、`rt_combined`、`bop_combined`；
+targets 是 `ssc_brix` 和 `firmness_n`。训练器本次仍保持 schema v1 行为，未将这些 modality
+接入 synthetic demo。
 
 ### 2.3 输出协议
 
