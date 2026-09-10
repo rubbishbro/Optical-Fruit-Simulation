@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rubbishbro/Optical-Fruit-Simulation/experimental_dataset.schema.json",
+  "title": "fruitsim canonical experimental apple dataset manifest",
+  "type": "object",
+  "required": ["schema_version", "dataset_id", "source_type", "status", "paper", "provenance", "available_channels", "units", "wavelength", "iad_settings", "measurement", "field_mapping", "notes"],
+  "properties": {
+    "schema_version": {"const": 2},
+    "dataset_id": {"type": "string", "minLength": 1},
+    "source_type": {"const": "experimental"},
+    "status": {"enum": ["pending", "received", "processed"]},
+    "paper": {"$ref": "#/$defs/paper"},
+    "provenance": {"$ref": "#/$defs/provenance"},
+    "available_channels": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"enum": ["reflectance", "transmittance", "mu_a", "mu_s_prime"]}
+    },
+    "units": {
+      "type": "object",
+      "required": ["wavelength", "reflectance", "transmittance", "mu_a", "mu_s_prime", "ssc", "firmness", "sample_thickness"],
+      "properties": {
+        "wavelength": {"const": "nm"},
+        "reflectance": {"const": "fraction_0_1"},
+        "transmittance": {"const": "fraction_0_1"},
+        "mu_a": {"const": "mm^-1"},
+        "mu_s_prime": {"const": "mm^-1"},
+        "ssc": {"const": "degree_brix"},
+        "firmness": {"const": "N"},
+        "sample_thickness": {"const": "mm"}
+      },
+      "additionalProperties": true
+    },
+    "wavelength": {
+      "type": "object",
+      "required": ["min_nm", "max_nm", "count"],
+      "properties": {
+        "min_nm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "max_nm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "count": {"type": ["integer", "null"], "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "iad_settings": {"$ref": "#/$defs/nullableSettings"},
+    "measurement": {"$ref": "#/$defs/measurement"},
+    "field_mapping": {"type": "object", "additionalProperties": {"type": "string"}},
+    "notes": {"type": ["string", "null"]}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "nullableString": {"type": ["string", "null"]},
+    "paper": {
+      "type": "object",
+      "required": ["title", "journal", "year", "doi"],
+      "properties": {
+        "title": {"$ref": "#/$defs/nullableString"},
+        "journal": {"$ref": "#/$defs/nullableString"},
+        "year": {"type": ["integer", "null"]},
+        "doi": {"$ref": "#/$defs/nullableString"}
+      },
+      "additionalProperties": true
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["data_received_from", "received_date", "redistribution", "raw_files"],
+      "properties": {
+        "data_received_from": {"$ref": "#/$defs/nullableString"},
+        "received_date": {"$ref": "#/$defs/nullableString"},
+        "redistribution": {"type": ["object", "null"]},
+        "raw_files": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "nullableSettings": {
+      "type": ["object", "null"],
+      "properties": {
+        "sample_thickness_mm": {"type": ["number", "null"], "minimum": 0},
+        "refractive_index": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "anisotropy_factor": {"type": ["number", "null"], "minimum": -1, "exclusiveMaximum": 1},
+        "software": {"$ref": "#/$defs/nullableString"}
+      },
+      "additionalProperties": true
+    },
+    "measurement": {
+      "type": "object",
+      "required": ["reflectance_method", "transmittance_method", "instrument"],
+      "properties": {
+        "reflectance_method": {"$ref": "#/$defs/nullableString"},
+        "transmittance_method": {"$ref": "#/$defs/nullableString"},
+        "instrument": {"$ref": "#/$defs/nullableString"}
+      },
+      "additionalProperties": true
+    }
+  }
+}

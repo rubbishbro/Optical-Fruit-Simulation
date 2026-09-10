@@ -1,0 +1,47 @@
+{
+  "schema_version": 2,
+  "dataset_id": null,
+  "source_type": "experimental",
+  "status": "pending",
+  "paper": {
+    "title": null,
+    "journal": null,
+    "year": null,
+    "doi": null
+  },
+  "provenance": {
+    "data_received_from": null,
+    "received_date": null,
+    "redistribution": {
+      "allowed": null,
+      "restriction": null,
+      "license": null
+    },
+    "raw_files": []
+  },
+  "available_channels": [],
+  "units": {
+    "wavelength": "nm",
+    "reflectance": "fraction_0_1",
+    "transmittance": "fraction_0_1",
+    "mu_a": "mm^-1",
+    "mu_s_prime": "mm^-1",
+    "ssc": "degree_brix",
+    "firmness": "N",
+    "sample_thickness": "mm"
+  },
+  "wavelength": {"min_nm": null, "max_nm": null, "count": null},
+  "iad_settings": {
+    "sample_thickness_mm": null,
+    "refractive_index": null,
+    "anisotropy_factor": null,
+    "software": null
+  },
+  "measurement": {
+    "reflectance_method": null,
+    "transmittance_method": null,
+    "instrument": null
+  },
+  "field_mapping": {},
+  "notes": null
+}

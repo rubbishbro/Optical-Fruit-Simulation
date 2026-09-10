@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 from .data import generate_synthetic_golden_delicious, validate_dataset
+from .datasets import load_experimental_dataset, validate_experimental_dataset
 from .train import train_from_config
 
 
@@ -18,14 +19,20 @@ def main() -> None:
     train.add_argument("--config", type=Path, required=True)
     validate = commands.add_parser("validate-data")
     validate.add_argument("--input", type=Path, required=True)
+    experimental = commands.add_parser("validate-experimental")
+    experimental.add_argument("--input", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "generate-demo":
         print(generate_synthetic_golden_delicious(args.output, args.samples, args.seed))
     elif args.command == "train":
         train_from_config(args.config)
-    else:
+    elif args.command == "validate-data":
         import json
         print(json.dumps(validate_dataset(args.input), indent=2))
+    else:
+        import json
+        dataset = load_experimental_dataset(args.input)
+        print(json.dumps(validate_experimental_dataset(dataset), indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":
