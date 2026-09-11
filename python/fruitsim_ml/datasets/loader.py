@@ -15,6 +15,10 @@ class ExperimentalDatasetLoadError(ValueError):
     """Raised for a structurally unreadable canonical dataset."""
 
 
+class ExperimentalDatasetPending(ExperimentalDatasetLoadError):
+    """Raised when a pending manifest has not received canonical tables yet."""
+
+
 def _dataset_root(path: Path) -> Path:
     path = Path(path)
     if path.is_file():
@@ -46,17 +50,28 @@ def load_experimental_dataset(path: Path) -> CanonicalExperimentalDataset:
     manifest_path = root / "manifest.json"
     samples_path = root / "processed" / "samples.csv"
     spectra_path = root / "processed" / "spectra.csv"
-    for required_path in (manifest_path, samples_path, spectra_path):
-        if not required_path.exists():
-            raise ExperimentalDatasetLoadError(f"Missing experimental dataset file: {required_path}")
+    if not manifest_path.exists():
+        raise ExperimentalDatasetLoadError(f"Missing experimental dataset file: {manifest_path}")
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise ExperimentalDatasetLoadError(f"Invalid manifest JSON: {manifest_path}") from exc
     if not isinstance(manifest, dict):
         raise ExperimentalDatasetLoadError("manifest.json must contain an object")
-    samples = _add_internal_measurement_key(pd.read_csv(samples_path))
-    spectra = _add_internal_measurement_key(pd.read_csv(spectra_path))
+    missing_tables = [path for path in (samples_path, spectra_path) if not path.exists()]
+    if missing_tables and manifest.get("status") == "pending":
+        raise ExperimentalDatasetPending(
+            f"dataset pending; canonical tables not present yet: {', '.join(str(path) for path in missing_tables)}"
+        )
+    for required_path in missing_tables:
+        raise ExperimentalDatasetLoadError(f"Missing experimental dataset file: {required_path}")
+    samples = pd.read_csv(samples_path)
+    spectra = pd.read_csv(spectra_path)
+    # Validate structural identity before deriving the optional internal key;
+    # malformed author mappings should produce our designed load error, not a
+    # pandas KeyError from indexing sample_id.
     _require_columns(samples, SAMPLE_REQUIRED_COLUMNS, "samples.csv")
     _require_columns(spectra, SPECTRA_REQUIRED_COLUMNS, "spectra.csv")
+    samples = _add_internal_measurement_key(samples)
+    spectra = _add_internal_measurement_key(spectra)
     return CanonicalExperimentalDataset(root, DatasetManifest(manifest), samples, spectra)

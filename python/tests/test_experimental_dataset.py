@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,6 +11,7 @@ from pathlib import Path
 import pandas as pd
 
 from fruitsim_ml.datasets import load_experimental_dataset, validate_experimental_dataset
+from fruitsim_ml.datasets.loader import ExperimentalDatasetLoadError
 
 
 def manifest(channels: list[str]) -> dict:
@@ -109,6 +113,63 @@ class ExperimentalDatasetTests(unittest.TestCase):
             codes = {item["code"] for item in report["errors"]}
             self.assertIn("fraction_range", codes)
             self.assertIn("duplicate_spectrum_point", codes)
+
+    def test_declared_missing_channel_is_fatal(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "dataset"
+            make_dataset(root)
+            spectra = pd.read_csv(root / "processed" / "spectra.csv").drop(columns=["reflectance"])
+            spectra.to_csv(root / "processed" / "spectra.csv", index=False)
+            report = validate_experimental_dataset(root)
+            self.assertFalse(report["valid"])
+            self.assertTrue(any(item["code"] == "declared_channel_column_missing" for item in report["errors"]))
+
+    def test_table_dataset_id_must_match_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "dataset"
+            make_dataset(root)
+            samples = pd.read_csv(root / "processed" / "samples.csv")
+            samples.loc[0, "dataset_id"] = "OTHER_DATASET"
+            samples.to_csv(root / "processed" / "samples.csv", index=False)
+            report = validate_experimental_dataset(root)
+            self.assertFalse(report["valid"])
+            self.assertTrue(any(item["code"] == "samples_dataset_id_mismatch" for item in report["errors"]))
+
+    def test_manifest_wavelength_metadata_drift_is_fatal(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "dataset"
+            make_dataset(root)
+            document = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+            document["wavelength"]["count"] = 99
+            (root / "manifest.json").write_text(json.dumps(document), encoding="utf-8")
+            report = validate_experimental_dataset(root)
+            self.assertFalse(report["valid"])
+            self.assertTrue(any(item["code"] == "wavelength_metadata_drift" for item in report["errors"]))
+
+    def test_missing_sample_id_uses_designed_loader_error(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "dataset"
+            make_dataset(root)
+            samples = pd.read_csv(root / "processed" / "samples.csv").drop(columns=["sample_id"])
+            samples.to_csv(root / "processed" / "samples.csv", index=False)
+            with self.assertRaises(ExperimentalDatasetLoadError) as context:
+                load_experimental_dataset(root)
+            self.assertIn("samples.csv is missing required columns", str(context.exception))
+
+    def test_pending_cli_reports_state_without_fake_table_error(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "pending"
+            (root / "processed").mkdir(parents=True)
+            pending_manifest = manifest([])
+            pending_manifest["status"] = "pending"
+            (root / "manifest.json").write_text(json.dumps(pending_manifest), encoding="utf-8")
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(Path(__file__).parents[1])
+            result = subprocess.run(
+                [sys.executable, "-m", "fruitsim_ml", "validate-experimental", "--input", str(root)],
+                env=env, capture_output=True, text=True, check=True,
+            )
+            self.assertIn("dataset pending; canonical tables not present yet", result.stdout)
 
     def test_metadata_joins_and_unknown_columns_are_not_filled(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .data import generate_synthetic_golden_delicious, validate_dataset
 from .datasets import load_experimental_dataset, validate_experimental_dataset
+from .datasets.loader import ExperimentalDatasetPending
 from .train import train_from_config
 
 
@@ -31,7 +32,16 @@ def main() -> None:
         print(json.dumps(validate_dataset(args.input), indent=2))
     else:
         import json
-        dataset = load_experimental_dataset(args.input)
+        try:
+            dataset = load_experimental_dataset(args.input)
+        except ExperimentalDatasetPending as exc:
+            print(json.dumps({
+                "schema_version": 2,
+                "valid": None,
+                "status": "pending",
+                "message": str(exc),
+            }, indent=2, ensure_ascii=False))
+            return
         print(json.dumps(validate_experimental_dataset(dataset), indent=2, ensure_ascii=False))
 
 
