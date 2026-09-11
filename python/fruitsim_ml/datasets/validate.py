@@ -84,6 +84,10 @@ def _check_tables(dataset: CanonicalExperimentalDataset, report: dict[str, Any])
         unknown = sorted(set(frame.columns) - known)
         if unknown:
             _warning(report, f"{name}_unknown_columns", f"Unknown {name} columns were preserved", fields=unknown)
+        if "dataset_id" in frame and dataset.dataset_id is not None:
+            values = set(frame["dataset_id"].dropna().astype(str))
+            if values and values != {str(dataset.dataset_id)}:
+                _error(report, f"{name}_dataset_id_mismatch", f"{name}.dataset_id does not match manifest.dataset_id", values=sorted(values))
     for frame, name in ((samples, "samples"), (spectra, "spectra")):
         for column in ("dataset_id", "sample_id"):
             if column in frame and frame[column].isna().any():
@@ -116,7 +120,10 @@ def _check_spectra(dataset: CanonicalExperimentalDataset, report: dict[str, Any]
     if wavelengths.isna().any() or (~np.isfinite(wavelengths)).any() or (wavelengths <= 0).any():
         _error(report, "wavelength_values", "wavelength_nm must be finite and positive")
     for channel, column in CHANNEL_COLUMNS.items():
+        declared = channel in dataset.manifest.available_channels
         if column not in spectra:
+            if declared:
+                _error(report, "declared_channel_column_missing", f"Declared channel {channel} has no canonical column", column=column)
             continue
         values = pd.to_numeric(spectra[column], errors="coerce")
         present = values.notna()
@@ -124,7 +131,7 @@ def _check_spectra(dataset: CanonicalExperimentalDataset, report: dict[str, Any]
             _error(report, "fraction_range", f"{column} must be in [0, 1]")
         if channel in {"mu_a", "mu_s_prime"} and (values[present] < 0).any():
             _error(report, "coefficient_range", f"{column} must be non-negative")
-        if channel in dataset.manifest.available_channels:
+        if declared:
             fraction_missing = float((~present).mean()) if len(values) else 1.0
             if not present.any():
                 _error(report, "declared_channel_absent", f"Declared channel {channel} has no values")
@@ -153,6 +160,18 @@ def _check_spectra(dataset: CanonicalExperimentalDataset, report: dict[str, Any]
         report["stats"]["wavelength_count"] = len(reference)
         report["stats"]["wavelength_min_nm"] = min(reference)
         report["stats"]["wavelength_max_nm"] = max(reference)
+        manifest_wavelength = dataset.manifest.raw.get("wavelength") or {}
+        actual_metadata = {
+            "min_nm": float(wavelengths.min()),
+            "max_nm": float(wavelengths.max()),
+            "count": len(reference),
+        }
+        for field, actual in actual_metadata.items():
+            expected = manifest_wavelength.get(field)
+            if expected is None:
+                _warning(report, "wavelength_metadata_missing", f"Manifest wavelength.{field} is null", field=field)
+            elif float(expected) != float(actual):
+                _error(report, "wavelength_metadata_drift", f"Manifest wavelength.{field} does not match spectra", field=field, manifest_value=expected, actual_value=actual)
 
 
 def validate_experimental_dataset(dataset: CanonicalExperimentalDataset | Path) -> dict[str, Any]:
