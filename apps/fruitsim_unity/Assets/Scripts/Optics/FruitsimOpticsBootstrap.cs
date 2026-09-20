@@ -17,35 +17,24 @@ namespace Fruitsim.UnityOptics
             GameObject root = new GameObject("FruitsimOpticsExperiment");
             IlluminationRigController controller = root.AddComponent<IlluminationRigController>();
             root.AddComponent<IlluminationControlPanel>();
-            Transform apple = CreateBlenderRig(controller);
+            Transform apple = CreateBlenderRig(controller, root);
             controller.SetAppleRoot(apple);
             controller.Mode = IlluminationMode.RingIllumination;
             ConfigureDemoCamera(CalculateCenter(apple));
         }
 
-        private static Transform CreateBlenderRig(IlluminationRigController controller)
+        private static Transform CreateBlenderRig(IlluminationRigController controller, GameObject experimentRoot)
         {
-            GameObject prefab = Resources.Load<GameObject>("FruitsimBlenderRig");
-            if (prefab == null)
-                throw new MissingReferenceException("Resources/FruitsimBlenderRig.fbx is required; export it from the authored Blender scene.");
-            GameObject rig = Object.Instantiate(prefab);
-            rig.name = "FruitsimBlenderRig";
-            Transform apple = FindChild(rig.transform, "BlenderApple");
-            if (apple == null)
-                throw new MissingReferenceException("The Blender rig does not contain BlenderApple.");
-            ApplyBlenderMaterials(rig.transform);
+            AppleGenerator generator = experimentRoot.AddComponent<AppleGenerator>();
+            AppleInstance generated = generator.GenerateApple(
+                20260920,
+                new AppleGeometryParameters(),
+                new AppleVisualMaterial(),
+                new ApplePhysicalProperties(),
+                new ApplePose());
+            ApplyBlenderMaterials(generated.containerObject.transform);
             controller.UseExternalSensorVisuals();
-            return apple;
-        }
-
-        private static Transform FindChild(Transform root, string name)
-        {
-            Transform[] transforms = root.GetComponentsInChildren<Transform>(true);
-            foreach (Transform item in transforms)
-            {
-                if (item.name == name) return item;
-            }
-            return null;
+            return generated.unityObject.transform;
         }
 
         private static void ApplyBlenderMaterials(Transform root)

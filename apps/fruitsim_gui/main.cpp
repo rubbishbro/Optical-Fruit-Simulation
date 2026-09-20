@@ -39,6 +39,15 @@ struct ModelMetric {
     double rpd = 0.0;
 };
 
+struct WorkflowStageSummary {
+    std::string id;
+    std::string stage;
+    std::vector<std::string> methods;
+    std::string input_ref;
+    std::string output_kind;
+    int intermediate_state_count = 0;
+};
+
 std::future<std::string> run_simulation(std::string config, std::string output)
 {
     return std::async(std::launch::async, [config = std::move(config), output = std::move(output)] {
@@ -65,6 +74,23 @@ std::future<std::string> run_ml_job(std::string python, std::string config)
         const int status = std::system(command.c_str());
         return status == 0 ? std::string{"ML comparison completed"}
                            : std::string{"ML comparison failed; inspect terminal output"};
+    });
+}
+
+std::future<std::string> run_workflow_job(std::string python, std::string run_dir, std::string output_dir)
+{
+    return std::async(std::launch::async, [python = std::move(python), run_dir = std::move(run_dir), output_dir = std::move(output_dir)] {
+        if (python.find('\'') != std::string::npos
+            || run_dir.find('\'') != std::string::npos
+            || output_dir.find('\'') != std::string::npos) {
+            return std::string{"Workflow rejected: paths cannot contain a single quote"};
+        }
+        const std::string command = "PYTHONPATH=python '" + python
+            + "' -m fruitsim_ml run-workflow --run-dir '" + run_dir
+            + "' --output '" + output_dir + "'";
+        const int status = std::system(command.c_str());
+        return status == 0 ? std::string{"Structured ML workflow completed"}
+                           : std::string{"Structured ML workflow failed; inspect terminal output"};
     });
 }
 
@@ -111,6 +137,26 @@ std::vector<ModelMetric> load_model_metrics(const std::filesystem::path& path)
     return result;
 }
 
+std::vector<WorkflowStageSummary> load_workflow_stages(const std::filesystem::path& path)
+{
+    std::ifstream stream(path);
+    if (!stream) throw std::runtime_error("Cannot open " + path.string());
+    nlohmann::json document;
+    stream >> document;
+    std::vector<WorkflowStageSummary> result;
+    for (const auto& stage : document.at("stage_runs")) {
+        WorkflowStageSummary summary;
+        summary.id = stage.at("stage_run_id").get<std::string>();
+        summary.stage = stage.at("stage").get<std::string>();
+        summary.methods = stage.at("method_chain").get<std::vector<std::string>>();
+        summary.input_ref = stage.at("input_ref").get<std::string>();
+        summary.output_kind = stage.at("output_kind").get<std::string>();
+        summary.intermediate_state_count = static_cast<int>(stage.at("intermediate_states").size());
+        result.push_back(std::move(summary));
+    }
+    return result;
+}
+
 } // namespace
 
 int main()
@@ -134,17 +180,23 @@ int main()
     std::array<char, 512> output_path{};
     std::array<char, 512> ml_config{};
     std::array<char, 512> ml_output{};
+    std::array<char, 512> workflow_run_dir{};
+    std::array<char, 512> workflow_output{};
     std::array<char, 512> python_executable{};
     std::strcpy(config_path.data(), "configs/golden_delicious_demo.json");
     std::strcpy(output_path.data(), "results/golden_delicious_demo");
     std::strcpy(ml_config.data(), "configs/ml_golden_demo.json");
     std::strcpy(ml_output.data(), "results/ml_golden_demo");
+    std::strcpy(workflow_run_dir.data(), "results/frontend_acceptance_20260920/student_demo_final/math_seed20260919");
+    std::strcpy(workflow_output.data(), "results/ml_workflow_demo");
     std::strcpy(python_executable.data(), "python");
     std::future<std::string> simulation;
     std::future<std::string> ml_job;
+    std::future<std::string> workflow_job;
     std::string status = "Ready";
     SpectralSummary summary;
     std::vector<ModelMetric> model_metrics;
+    std::vector<WorkflowStageSummary> workflow_stages;
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -217,6 +269,51 @@ int main()
         if (ml_job.valid()
             && ml_job.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
             status = ml_job.get();
+        }
+        ImGui::End();
+
+        ImGui::Begin("ML Stage Navigator");
+        ImGui::InputText("Workflow input Run", workflow_run_dir.data(), workflow_run_dir.size());
+        ImGui::InputText("Workflow output", workflow_output.data(), workflow_output.size());
+        if (ImGui::Button("Run structured workflow")
+            && (!workflow_job.valid()
+                || workflow_job.wait_for(std::chrono::seconds(0)) == std::future_status::ready)) {
+            workflow_job = run_workflow_job(python_executable.data(), workflow_run_dir.data(), workflow_output.data());
+            status = "Structured workflow running...";
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Load StageRun summary")) {
+            try {
+                workflow_stages = load_workflow_stages(
+                    std::filesystem::path(workflow_output.data()) / "experiment.json");
+                status = "StageRun summary loaded";
+            } catch (const std::exception& error) {
+                status = std::string{"StageRun load failed: "} + error.what();
+            }
+        }
+        if (workflow_job.valid()
+            && workflow_job.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+            status = workflow_job.get();
+        }
+        if (!workflow_stages.empty() && ImGui::BeginTabBar("MLStages")) {
+            for (const auto& stage : workflow_stages) {
+                if (ImGui::BeginTabItem(stage.stage.c_str())) {
+                    ImGui::Text("StageRun: %s", stage.id.c_str());
+                    ImGui::Text("Input: %s", stage.input_ref.c_str());
+                    ImGui::Text("Output: %s", stage.output_kind.c_str());
+                    ImGui::Text("Methods: ");
+                    ImGui::SameLine();
+                    for (std::size_t index = 0; index < stage.methods.size(); ++index) {
+                        if (index > 0) ImGui::SameLine();
+                        ImGui::TextUnformatted(stage.methods[index].c_str());
+                    }
+                    ImGui::Text("Intermediate states: %d", stage.intermediate_state_count);
+                    ImGui::EndTabItem();
+                }
+            }
+            ImGui::EndTabBar();
+        } else {
+            ImGui::TextWrapped("Run or load experiment.json to inspect the six stage-specific views: Data, Preprocessing, Feature Analysis, Feature Selection, Modeling, Results.");
         }
         ImGui::End();
 
