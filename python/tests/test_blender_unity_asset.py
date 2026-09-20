@@ -7,6 +7,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 FBX = ROOT / "apps/fruitsim_unity/Assets/Resources/FruitsimBlenderRig.fbx"
 BOOTSTRAP = ROOT / "apps/fruitsim_unity/Assets/Scripts/Optics/FruitsimOpticsBootstrap.cs"
+GENERATOR = ROOT / "apps/fruitsim_unity/Assets/Scripts/Optics/AppleGenerator.cs"
+MODELS = ROOT / "apps/fruitsim_unity/Assets/Scripts/Optics/AppleModels.cs"
 EXPORTER = ROOT / "scripts/export_blender_ring_rig_to_unity.py"
 ORBIT = ROOT / "apps/fruitsim_unity/Assets/Scripts/Optics/OrbitCameraController.cs"
 
@@ -24,8 +26,14 @@ class BlenderUnityAssetTests(unittest.TestCase):
 
     def test_runtime_requires_blender_rig_without_primitive_fallback(self) -> None:
         source = BOOTSTRAP.read_text(encoding="utf-8")
-        self.assertIn('Resources.Load<GameObject>("FruitsimBlenderRig")', source)
-        self.assertIn('FindChild(rig.transform, "BlenderApple")', source)
+        generator = GENERATOR.read_text(encoding="utf-8")
+        models = MODELS.read_text(encoding="utf-8")
+        self.assertIn("AppleGenerator", source)
+        self.assertIn("GenerateApple(", source)
+        self.assertIn("Resources.Load<GameObject>(resourcePath)", generator)
+        self.assertIn("sampleId = $\"unity-apple-{request.seed:D10}\"", generator)
+        self.assertIn("ApplePhysicalProperties", models)
+        self.assertIn("AppleVisualMaterial", models)
         self.assertNotIn("CreatePrimitive", source)
         self.assertNotIn("Sphere.fbx", source)
 

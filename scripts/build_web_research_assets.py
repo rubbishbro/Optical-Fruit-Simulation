@@ -6,6 +6,7 @@ from __future__ import annotations
 import csv
 import json
 import shutil
+import sys
 from pathlib import Path
 
 
@@ -35,6 +36,7 @@ def _read_csv(path: Path) -> list[dict[str, str]]:
 
 
 def main() -> int:
+    sys.path.insert(0, str(ROOT / "python"))
     import matplotlib
 
     matplotlib.use("Agg")
@@ -112,6 +114,45 @@ def main() -> int:
     }
     (OUTPUT / "ml_summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+    from fruitsim_ml.workflow import run_workflow_from_run
+
+    workflow_output = ROOT / "results/ml_workflow_demo"
+    experiment = run_workflow_from_run(
+        ROOT / "results/frontend_acceptance_20260920/student_demo_final/math_seed20260919",
+        workflow_output,
+        experiment_id="web_ml_workflow_demo",
+        seed=20260920,
+    )
+    serialized_stages = [stage.to_dict() for stage in experiment.stage_runs]
+    workflow_summary = {
+        "schema_version": 1,
+        "experiment_id": experiment.experiment_id,
+        "dataset_id": experiment.dataset_id,
+        "data_boundary": "synthetic demonstration; inspect source manifest before scientific use",
+        "pipeline": experiment.pipeline_definition.to_dict(),
+        "stages": [
+            {
+                "stage_run_id": stage["stage_run_id"],
+                "stage": stage["stage"],
+                "methods": stage["method_chain"],
+                "input_ref": stage["input_ref"],
+                "output_ref": stage["output_ref"],
+                "output_kind": stage["output_kind"],
+                "parameters": stage["parameters"],
+                "statistics": stage["statistics"],
+                "intermediate_state_count": len(stage["intermediate_states"]),
+                "cache_hit": stage["cache_hit"],
+            }
+            for stage in serialized_stages
+        ],
+        "final_model_id": experiment.final_model_id,
+        "final_metrics": experiment.final_metrics.to_dict() if experiment.final_metrics else None,
+        "reloadable_artifact": "experiment.json",
+    }
+    (OUTPUT / "ml_workflow_summary.json").write_text(
+        json.dumps(workflow_summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     print(f"Built research UI assets in {OUTPUT}")
     return 0

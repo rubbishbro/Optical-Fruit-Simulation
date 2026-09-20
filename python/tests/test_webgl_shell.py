@@ -25,6 +25,9 @@ class WebGLShellTests(unittest.TestCase):
             "static/absorption_heatmap.png",
             "static/photon_paths.png",
             "static/ml_prediction_scatter.png",
+            "static/ml_workflow_summary.json",
+            "ml-stage-tabs",
+            "StageRun",
             "ApplyWebParameters",
             "FruitsimOrbitCamera",
         ):
