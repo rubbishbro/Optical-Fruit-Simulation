@@ -14,7 +14,9 @@
 | 问题 | 根因 | 修复 |
 |---|---|---|
 | 方法参数不可追溯 | Pipeline 只存字符串，stage 向整条 chain 传一个参数字典 | 引入 `ParameterDefinition`、`MethodSpec`；默认值显式 merge、校验、固化 |
-| Selection source 硬编码 | 使用 `analyses.get("cars")` / 首个字典元素 | 引入 `FeatureSelectionSpec.source_analysis_id` 和 method accepted-source contract |
+| Selection source 硬编码 | 使用 `analyses.get("cars")` / 首个字典元素 | 引入 `FeatureSelectionSpec.source_invocation_id` 和 method accepted-source contract |
+| 同算法参数组合互相覆盖 | analysis/model 结果以 `method_id` 为唯一键 | `MethodSpec.invocation_id` 唯一标识调用；StageRun、最终模型和引用均沿用该 ID |
+| Results 引用并非真实 StageRun | Modeling stage id 含序号，Results 却按方法名拼接引用 | Results 直接引用被选中模型的实际 `StageRun.stage_run_id` |
 | validation 污染模型选择 | 按 final validation RMSE 选模型 | `select_final_model_by_cv()` 只读取 calibration CV RMSE；validation 仅最终评估 |
 | cache 串 groups/source | Spectrum fingerprint 未包含 metadata | 纳入全部 computational metadata；仅 `metadata["display"]` 明确排除 |
 | Results 混合 calibration/validation | renderer state 保存全体预测 | 增加 split-aware view API；Results state 默认保存 validation subset |
@@ -40,8 +42,8 @@
 ## 4. 新数据结构与合同
 
 - `ParameterDefinition(default, type, min, max)`：参数默认值和基础约束。
-- `MethodSpec(method_id, parameters, resolved_parameters)`：精确保存显式值和执行值。
-- `FeatureSelectionSpec(method, source_analysis_id)`：明确 analysis → selection 边。
+- `MethodSpec(method_id, parameters, resolved_parameters, invocation_id)`：精确保存显式值、执行值和调用节点身份；`node_id` 为只读别名。
+- `FeatureSelectionSpec(method, source_invocation_id)`：按唯一调用节点明确 analysis → selection 边。
 - `PredictionSet.view()`、`calibration_view()`、`validation_view()`：split-aware renderer contract。
 - `StageRun.computational_fingerprint`：可持久化 cache identity。
 - `AppleRequestIdentity`：纯 C# snapshot/canonicalization/hash。
@@ -50,7 +52,7 @@
 ## 5. Backward compatibility
 
 - `PipelineDefinition` 仍接受旧的 method-id 字符串；schema-v1 ExperimentRun/StageRun 仍可加载。
-- JSON schema 升级为 v2，同时保留 `method_chain`，C++ GUI 读取合同不变。
+- JSON schema 升级为 v3，同时保留 `method_chain`；v1/v2 中缺少 invocation ID 时默认回退到 `method_id`，旧 `source_analysis_id` 仍可加载。
 - `StageRun.parameters` 现在按 method 分组展示，不再是 stage 共享参数字典；依赖旧参数形状的第三方消费者需要适配。
 - Apple `sampleId` 从 seed-only 改为 request hash；旧 sample id 与新规则不兼容，这是为修复追溯冲突而做的必要变更。
 
@@ -64,11 +66,11 @@ PYTHONPATH=python MPLCONFIGDIR=.cache/matplotlib \
   -m unittest discover -s python/tests -p 'test_*.py' -v
 ```
 
-结果：**62 passed，0 failed，0 skipped**，3.205 s。
+结果：**65 passed，0 failed，0 skipped**，4.389 s。
 
-其中新增/重点 workflow 与 Unity 静态合同测试单独运行结果：**27 passed，0 failed，0 skipped**。
+其中 workflow 两个测试模块单独运行结果：**25 passed，0 failed，0 skipped**；重新生成 Web ML 摘要后，workflow + Web shell 定向回归为 **28 passed**。
 
-第一次在受限 sandbox 内运行 Gateway E2E 时，因禁止绑定 `127.0.0.1:18766` 出现 1 次环境性失败；在允许 loopback 的相同代码上重跑完整套件后 62/62 通过。该失败未隐藏，也不是应用逻辑回归。
+第一次在受限 sandbox 内运行 Gateway E2E 时，因禁止绑定 `127.0.0.1:18766` 出现 1 次环境性失败，编排子进程用例也因沙箱限制阻塞；在允许 loopback 和子进程的相同代码上重跑完整套件后 65/65 通过。该失败未隐藏，也不是应用逻辑回归。
 
 ## 7. C++ build/tests
 

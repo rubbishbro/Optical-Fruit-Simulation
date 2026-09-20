@@ -90,6 +90,14 @@ public static class AppleCorrectnessChecks
             int baselineMaterials = CountOwnedMaterialNames();
             AppleInstance instance = generator.GenerateApple(request);
             Check(instance.OwnedRuntimeMaterialCount > 0, "generator must track owned runtime materials");
+            Check(generator.Capabilities.activeVisualParameters.Contains("roughness"), "roughness must be runtime-active in P1");
+            Check(generator.Capabilities.activeVisualParameters.Contains("spotDensity"), "spotDensity must be runtime-active in P1");
+            Check(generator.Capabilities.activeVisualParameters.Contains("normalStrength"), "normalStrength must be runtime-active in P1");
+            Renderer generatedRenderer = instance.unityObject.GetComponentInChildren<Renderer>(true);
+            Check(generatedRenderer != null && generatedRenderer.sharedMaterial != null, "generated apple must have a runtime material");
+            Check(Mathf.Abs(generatedRenderer.sharedMaterial.GetFloat("_Roughness") - request.visualMaterial.roughness) < 0.0001f, "roughness must reach the shader");
+            Check(Mathf.Abs(generatedRenderer.sharedMaterial.GetFloat("_SpotDensity") - request.visualMaterial.spotDensity) < 0.0001f, "spot density must reach the shader");
+            Check(Mathf.Abs(generatedRenderer.sharedMaterial.GetFloat("_NormalStrength") - request.visualMaterial.normalStrength) < 0.0001f, "normal strength must reach the shader");
             string sampleId = instance.sampleId;
             float geometrySnapshot = instance.geometry.heightRatio;
             float physicalSnapshot = instance.physical.waterContent;
@@ -119,6 +127,15 @@ public static class AppleCorrectnessChecks
             Check(CountOwnedMaterialNames() == baselineMaterials, "repeated generate/destroy must not grow material count");
             Check(Resources.Load<GameObject>("FruitsimBlenderRig") == sharedSource, "shared source must not be destroyed");
             Check(generator.Capabilities.metadataOnlyGeometryParameters.Contains("heightRatio"), "capabilities must expose metadata-only geometry fields");
+
+            FruitsimAppleGeneratorBridge bridge = host.AddComponent<FruitsimAppleGeneratorBridge>();
+            bridge.Initialize(generator);
+            string batchJson = $"{{\"count\":3,\"base_seed\":{request.seed + 100},\"request\":{JsonUtility.ToJson(request)}}}";
+            bridge.GenerateBatchJson(batchJson);
+            Check(bridge.GeneratedCount == 3, "batch bridge must create the requested count");
+            bridge.ClearGenerated();
+            Check(bridge.GeneratedCount == 0, "batch bridge clear must release generated instances");
+            Check(CountOwnedMaterialNames() == baselineMaterials, "batch clear must release all generated materials");
         }
         finally
         {

@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Fruitsim 光学与机器学习实验台</title>
+  <link rel="stylesheet" href="static/ml_p1.css">
   <style>
     :root { --paper:#f5f6f4; --sheet:#fff; --ink:#17212b; --muted:#64717d; --line:#cdd4d9; --blue:#205c86; --blue-soft:#e9f0f5; --orange:#b45f38; --ok:#276749; }
     * { box-sizing:border-box; }
@@ -134,6 +135,33 @@
           <div class="param-row check"><label for="show-rays">显示方向光线</label><input id="show-rays" type="checkbox" checked></div>
           <button id="apply-optics" class="primary">应用参数到 Unity</button>
           <p id="parameter-status" class="note">参数尚未修改。780–1100 nm 在显示器上以暗红伪彩表示。</p>
+          <details class="apple-generator" open>
+            <summary>Unity Apple Generator · P1</summary>
+            <p class="note">生成对象使用稳定 sample_id。物理参数只作为 metadata 保存，不自动改变可见材质。</p>
+            <div class="apple-form-grid">
+              <label>Seed<input id="apple-seed" type="number" value="20260920"></label>
+              <label>Batch count<input id="apple-batch-count" type="number" value="1" min="1" max="32"></label>
+              <label>Scale<input id="apple-scale" type="number" value="1" min="0.01" step="0.01"></label>
+              <label>Height ratio<input id="apple-height-ratio" type="number" value="1" step="0.01"></label>
+              <label>Crown ratio<input id="apple-crown-ratio" type="number" value="0.08" step="0.01"></label>
+              <label>Asymmetry<input id="apple-asymmetry" type="number" value="0" step="0.01"></label>
+              <label>Color<input id="apple-color" type="color" value="#7a0906"></label>
+              <label>Roughness<input id="apple-roughness" type="number" value="0.68" min="0" max="1" step="0.01"></label>
+              <label>Spot density<input id="apple-spot-density" type="number" value="0.12" min="0" max="1" step="0.01"></label>
+              <label>Normal strength<input id="apple-normal-strength" type="number" value="0.12" min="0" max="1" step="0.01"></label>
+              <label>SSC / °Brix<input id="apple-ssc" type="number" value="12.5" step="0.1"></label>
+              <label>Water content<input id="apple-water" type="number" value="0.74" step="0.01"></label>
+              <label>Absorption scale<input id="apple-absorption" type="number" value="1" step="0.01"></label>
+              <label>Scattering scale<input id="apple-scattering" type="number" value="1" step="0.01"></label>
+              <label>Refractive index<input id="apple-ri" type="number" value="1.36" step="0.01"></label>
+              <label>Position x<input id="apple-pos-x" type="number" value="0" step="0.05"></label>
+              <label>Position y<input id="apple-pos-y" type="number" value="0" step="0.05"></label>
+              <label>Position z<input id="apple-pos-z" type="number" value="0" step="0.05"></label>
+            </div>
+            <div class="button-row"><button id="generate-apple" class="primary">Generate Apple</button><button id="generate-batch">Generate Batch</button><button id="clear-apples">Clear generated</button></div>
+            <p id="apple-status" class="note">Unity generator waiting.</p>
+            <code id="apple-sample-id" class="apple-sample-id">sample_id: -</code>
+          </details>
         </aside>
       </div>
     </section>
@@ -143,12 +171,51 @@
       <div class="boundary">说明：吸收热力图和光子路径图用于解释模拟机制；它们不是苹果内部真实成像结果。数值结果需结合 Run manifest、能量审计和参数配置解读。</div>
     </section>
     <section id="page-ml" class="view">
-      <div class="view-title"><div><h2>机器学习处理链路</h2><p>从光学/光谱输入到验证集指标，展示处理步骤、数据隔离和模型结果。</p></div><span class="tag">SYNTHETIC DEMONSTRATION</span></div>
-      <article class="sheet ml-workflow"><div id="ml-stage-tabs" class="stage-tabs" aria-label="ML 阶段页面"></div><div id="ml-stage-detail" class="stage-detail"><div><h3>正在读取 StageRun</h3><p>结构化实验摘要加载中。</p></div></div></article>
-      <div class="pipeline" aria-label="机器学习流水线"><div class="step"><b>01 数据来源</b><span>Run manifest 与光谱表</span></div><div class="step"><b>02 数据校验</b><span>样本键、波长网格、单位</span></div><div class="step"><b>03 划分</b><span>先划分，再拟合阶段方法</span></div><div class="step"><b>04 预处理</b><span>Raw / SNV / SG→SNV</span></div><div class="step"><b>05 特征分析</b><span>PCA 与 CARS 中间状态</span></div><div class="step"><b>06 建模</b><span>SelectedFeatureSet → PLSR</span></div><div class="step"><b>07 结果</b><span>RMSE、MAE、R²、样本数</span></div></div>
-      <div class="kpis"><div class="kpi"><span>最佳模型</span><strong id="kpi-model">SVR</strong></div><div class="kpi"><span>预处理</span><strong id="kpi-preprocess">SavGol</strong></div><div class="kpi"><span>验证 R²</span><strong id="kpi-r2">0.975</strong></div><div class="kpi"><span>RMSEP</span><strong id="kpi-rmsep">0.266</strong></div><div class="kpi"><span>RPD</span><strong id="kpi-rpd">6.31</strong></div><div class="kpi"><span>验证样本</span><strong id="kpi-n">150</strong></div></div>
-      <div class="ml-grid"><article class="sheet ml-figure"><h3>预测值与参考值</h3><p>验证集，虚线为理想 1:1；单位 °Brix。</p><img src="static/ml_prediction_scatter.png" alt="验证集预测散点图"></article><article class="sheet ml-figure"><h3>候选流水线比较</h3><p>按验证 RMSEP 排序，越低越好；仅展示前八项。</p><img src="static/ml_model_comparison.png" alt="模型误差比较图"></article></div>
-      <div class="guardrails"><div><b>划分先于预处理</b><span>验证样本不参与滤波器、缩放器或模型拟合。</span></div><div><b>目标不进入特征</b><span>SSC 标签与特征矩阵分离，测试覆盖名称与列级泄漏。</span></div><div><b>结果边界</b><span>这些指标来自合成教学数据，不作为真实苹果精度声明。</span></div></div>
+      <div class="view-title"><div><h2>ML 实验讲解台</h2><p>按 StageRun 读取已经完成的实验；图、解释与教学步骤来自同一份结构化结果。</p></div><span id="ml-source-tag" class="tag">LOADING P1 BUNDLE</span></div>
+      <article class="sheet ml-p1-toolbar">
+        <label>Experiment <select id="ml-experiment-select" aria-label="选择实验"></select></label>
+        <label>Selected sample <select id="ml-sample-select" aria-label="选择样本"></select></label>
+        <label>Selected wavelength <select id="ml-feature-select" aria-label="选择波长"></select></label>
+        <button id="ml-play-pipeline" class="primary ml-toolbar-button">▶ Play Pipeline Explanation</button>
+        <span id="ml-play-status" class="ml-status">ready</span>
+      </article>
+      <article class="sheet ml-p1-shell" data-legacy-summary="static/ml_workflow_summary.json">
+        <div id="ml-stage-tabs" class="stage-tabs" aria-label="ML 阶段页面"></div>
+        <div class="ml-stage-meta">
+          <div><span>Experiment ID</span><code id="ml-experiment-id">-</code></div>
+          <div><span>Dataset</span><code id="ml-dataset-id">-</code></div>
+          <div><span>StageRun</span><code id="ml-stage-run-id">-</code></div>
+          <div><span>Invocation</span><code id="ml-invocation-id">-</code></div>
+          <div><span>Input ref</span><code id="ml-input-ref">-</code></div>
+          <div><span>Source</span><code id="ml-source-type">-</code></div>
+        </div>
+        <div class="ml-p1-grid">
+          <aside class="ml-explanation">
+            <h3>Explanation</h3>
+            <section><h4>What</h4><p id="ml-what">正在读取结构化实验。</p></section>
+            <section><h4>Why</h4><p id="ml-why">-</p></section>
+            <section><h4>How</h4><p id="ml-how">-</p></section>
+            <section><h4>How to read this figure</h4><p id="ml-read">-</p></section>
+            <section><h4>What happened</h4><p id="ml-happened">-</p></section>
+            <section><h4>Interpretation</h4><p id="ml-interpretation">-</p></section>
+          </aside>
+          <section class="ml-evidence">
+            <div class="ml-evidence-head"><div><h3 id="ml-stage-title">Stage</h3><p id="ml-stage-subtitle">真实 StageRun 证据</p></div><div id="ml-stage-switches" class="ml-switches"></div></div>
+            <div class="ml-chart-frame"><canvas id="ml-chart" width="980" height="520" aria-label="ML 教学图表"></canvas><div id="ml-chart-error" class="ml-chart-error" hidden></div></div>
+            <div id="ml-legend" class="ml-legend"></div>
+            <div id="ml-stage-controls" class="ml-stage-controls"></div>
+          </section>
+        </div>
+        <div class="ml-animation-bar">
+          <button id="ml-restart">↺ Restart</button><button id="ml-previous">◀ Previous</button><button id="ml-next">Next ▶</button><button id="ml-pause">Ⅱ Pause</button>
+          <input id="ml-timeline" type="range" min="0" max="0" value="0" aria-label="教学时间线"><span id="ml-timeline-label">Step 0 / 0</span>
+          <span id="ml-event-label" class="ml-event-label">event: -</span>
+        </div>
+        <div id="ml-event-narration" class="ml-event-narration">选择一个 Stage 查看教学步骤。动画只播放已有 IntermediateState，不重新计算。</div>
+      </article>
+      <section id="ml-results-overview" class="ml-results-overview"></section>
+      <div class="ml-reference-contract" data-reference-figure="static/ml_prediction_scatter.png">Static validation figure remains available as a reference asset; interactive charts above use the same ExperimentRun data.</div>
+      <div class="boundary">数据边界：当前前台示例来自合成教学 Run。CARS 的 RMSECV 标注为 internal selection heuristic，不等价于 nested-CV 无偏泛化性能。</div>
     </section>
     <section id="page-run" class="view">
       <div class="view-title"><div><h2>运行与审计</h2><p>启动可重复 Run，观察命令确认、状态推进和事件重放。</p></div><span class="tag">PROTOCOL v1</span></div>
@@ -163,16 +230,20 @@
     const figureMenu=document.querySelector('#figure-menu');
     function showFigure(index){const[title,src,note]=figures[index];document.querySelector('#figure-title').textContent=title;document.querySelector('#figure-note').textContent=note;document.querySelector('#figure-image').src=src;document.querySelectorAll('#figure-menu button').forEach((button,i)=>button.classList.toggle('active',i===index));}
     figures.forEach((figure,index)=>{const button=document.createElement('button');button.textContent=`${String(index+1).padStart(2,'0')}  ${figure[0]}`;button.onclick=()=>showFigure(index);figureMenu.appendChild(button);});showFigure(0);
-    const mlStageLabels={data_inspection:'Data',preprocessing:'Preprocessing',feature_analysis:'Feature Analysis',feature_selection:'Feature Selection',modeling:'Modeling',results:'Results'};
-    let mlWorkflow=null, activeMLStage='data-inspection';
-    function stageLabel(stage){if(stage.stage==='feature_analysis')return `Feature Analysis · ${(stage.methods[0]||'method').toUpperCase()}`;return mlStageLabels[stage.stage]||stage.stage;}
-    function formatStageValue(value){if(value===null||value===undefined)return'-';if(typeof value==='number')return Number.isInteger(value)?String(value):value.toFixed(4);return String(value);}
-    function renderMLStage(stageId){if(!mlWorkflow)return;activeMLStage=stageId;const stage=mlWorkflow.stages.find(item=>item.stage_run_id===stageId)||mlWorkflow.stages[0];document.querySelectorAll('#ml-stage-tabs button').forEach(button=>button.classList.toggle('active',button.dataset.stageId===stage.stage_run_id));const stats=stage.statistics||{};const methodStats=Object.values(stats)[0]||{};const params=stage.parameters||{};const methods=stage.methods.map(method=>`<code>${method}</code>`).join(' → ');const stateRows=stage.intermediate_state_count?`<div class="state-row"><b>${stage.intermediate_state_count}</b> 个中间状态</div><div class="state-row"><span>future events</span> morph_curve · project_points · remove_features · connect_feature_to_prediction</div>`:'<div class="state-row">当前阶段没有额外中间状态</div>';document.querySelector('#ml-stage-detail').innerHTML=`<div><h3>${stageLabel(stage)}</h3><p>StageRun <code>${stage.stage_run_id}</code></p><p>方法：${methods}</p><p>输入：<code>${stage.input_ref}</code></p><p>输出：<code>${stage.output_kind}</code> · <code>${stage.output_ref}</code></p><p>缓存：${stage.cache_hit?'命中':'首次计算'}</p></div><div><h3>参数与统计</h3><div class="stage-json">${JSON.stringify({parameters:params,statistics:methodStats},null,2)}</div></div><div class="stage-states"><h3>可视化状态</h3>${stateRows}</div>`;}
-    fetch('static/ml_workflow_summary.json').then(response=>response.json()).then(summary=>{mlWorkflow=summary;const tabs=document.querySelector('#ml-stage-tabs');summary.stages.forEach(stage=>{const button=document.createElement('button');button.dataset.stageId=stage.stage_run_id;button.textContent=stageLabel(stage);button.onclick=()=>renderMLStage(stage.stage_run_id);tabs.appendChild(button);});renderMLStage(activeMLStage);}).catch(()=>{document.querySelector('#ml-stage-detail').innerHTML='<div><h3>StageRun 摘要不可用</h3><p>请重新生成 Web 研究资源包。</p></div>';});
     function sendUnity(objectName,method,value){if(!unityInstance)return false;if(value===undefined)unityInstance.SendMessage(objectName,method);else unityInstance.SendMessage(objectName,method,value);return true;}
+    function numberValue(id){return Number(document.querySelector(`#${id}`).value)||0;}
+    function appleColor(){const value=document.querySelector('#apple-color').value.replace('#','');const rgb=parseInt(value,16);return{r:((rgb>>16)&255)/255,g:((rgb>>8)&255)/255,b:(rgb&255)/255,a:1};}
+    function applePayload(seed){return{seed:seed===undefined?numberValue('apple-seed'):seed,geometry:{scale:numberValue('apple-scale'),heightRatio:numberValue('apple-height-ratio'),crownRatio:numberValue('apple-crown-ratio'),asymmetry:numberValue('apple-asymmetry')},visualMaterial:{color:appleColor(),roughness:numberValue('apple-roughness'),spotDensity:numberValue('apple-spot-density'),normalStrength:numberValue('apple-normal-strength')},physical:{sscBrix:numberValue('apple-ssc'),waterContent:numberValue('apple-water'),absorptionScale:numberValue('apple-absorption'),reducedScatteringScale:numberValue('apple-scattering'),refractiveIndex:numberValue('apple-ri')},pose:{position:{x:numberValue('apple-pos-x'),y:numberValue('apple-pos-y'),z:numberValue('apple-pos-z')},eulerAngles:{x:0,y:0,z:0}}};}
+    function appleStatus(text){document.querySelector('#apple-status').textContent=text;}
+    window.FruitsimAppleGenerated=function(sampleId){document.querySelector('#apple-sample-id').textContent=`sample_id: ${sampleId}`;appleStatus('Apple generated · visual parameters applied · physical parameters stored as metadata.');};
+    window.FruitsimAppleBatchGenerated=function(ids){const values=String(ids||'').split(',').filter(Boolean);document.querySelector('#apple-sample-id').textContent=`sample_ids: ${values.join(', ')}`;appleStatus(`Batch generated · ${values.length} apples · seed start ${numberValue('apple-seed')}.`);};
+    window.FruitsimAppleGenerationFailed=function(message){appleStatus(`Generation failed: ${message}`);};
+    window.FruitsimAppleCleared=function(){document.querySelector('#apple-sample-id').textContent='sample_id: -';appleStatus('Generated apples cleared.');};
+    document.querySelector('#generate-apple').onclick=()=>{const sent=sendUnity('FruitsimOpticsExperiment','GenerateAppleJson',JSON.stringify(applePayload()));if(!sent)appleStatus('Unity 尚未就绪，生成请求未发送。');};
+    document.querySelector('#generate-batch').onclick=()=>{const count=Math.max(1,Math.min(32,Math.round(numberValue('apple-batch-count'))));const payload={count,base_seed:Math.round(numberValue('apple-seed')),request:applePayload(Math.round(numberValue('apple-seed')))};const sent=sendUnity('FruitsimOpticsExperiment','GenerateBatchJson',JSON.stringify(payload));if(!sent)appleStatus('Unity 尚未就绪，批量请求未发送。');};
+    document.querySelector('#clear-apples').onclick=()=>{const sent=sendUnity('FruitsimOpticsExperiment','ClearGenerated');appleStatus(sent?'Clear request sent to Unity…':'Unity 尚未就绪，清理请求未发送。');};
     document.querySelector('#zoom-in').onclick=()=>sendUnity('FruitsimOrbitCamera','ZoomIn');document.querySelector('#zoom-out').onclick=()=>sendUnity('FruitsimOrbitCamera','ZoomOut');document.querySelector('#reset-view').onclick=()=>sendUnity('FruitsimOrbitCamera','ResetView');document.querySelector('#fullscreen').onclick=()=>document.querySelector('#unity-container').requestFullscreen();
     document.querySelector('#apply-optics').onclick=()=>{const payload={wavelength_nm:Number(document.querySelector('#wavelength').value),ring_radius_ratio:Number(document.querySelector('#ring-radius').value),ring_height_ratio:Number(document.querySelector('#ring-height').value),incident_angle_deg:Number(document.querySelector('#incident-angle').value),beam_divergence_deg:Number(document.querySelector('#divergence').value),optical_power:Number(document.querySelector('#optical-power').value),sensor_radius_ratio:Number(document.querySelector('#sensor-radius').value),sensor_offset_ratio:Number(document.querySelector('#sensor-offset').value),sensor_fov_deg:Number(document.querySelector('#sensor-fov').value),show_rays:document.querySelector('#show-rays').checked};const sent=sendUnity('FruitsimOpticsExperiment','ApplyWebParameters',JSON.stringify(payload));document.querySelector('#parameter-status').textContent=sent?`已应用：${payload.wavelength_nm} nm，倾角 ${payload.incident_angle_deg}°，功率 ${payload.optical_power}`:'Unity 尚未就绪，参数未发送。';command('viewer.set_wavelength',{wavelength_nm:payload.wavelength_nm},document.querySelector('#run-id').value.trim(),true);};
-    fetch('static/ml_summary.json').then(response=>response.json()).then(summary=>{const best=summary.best;document.querySelector('#kpi-model').textContent=best.model.toUpperCase();document.querySelector('#kpi-preprocess').textContent=best.preprocessing;document.querySelector('#kpi-r2').textContent=best.validation_r2.toFixed(3);document.querySelector('#kpi-rmsep').textContent=best.rmsep.toFixed(3);document.querySelector('#kpi-rpd').textContent=best.validation_rpd.toFixed(2);document.querySelector('#kpi-n').textContent=best.validation_samples;}).catch(()=>{});
     function setConnection(text,online){connection.textContent=online?'GATEWAY ONLINE':'GATEWAY '+text.toUpperCase();connection.classList.toggle('online',!!online);gatewayState.textContent=text;}
     function log(message){const time=new Date().toLocaleTimeString();if(logBox.textContent==='Waiting for Gateway…')logBox.textContent='';logBox.textContent+=`[${time}] ${message}\n`;logBox.scrollTop=logBox.scrollHeight;}
     function gatewayUrl(){const scheme=location.protocol==='https:'?'wss':'ws';return`${scheme}://${location.hostname}:${Number(document.querySelector('#gateway-port').value)||8765}`;}
@@ -181,5 +252,6 @@
     document.querySelector('#connect-btn').onclick=connect;document.querySelector('#start-btn').onclick=()=>command('run.start',{mode:'math',seed:Number(document.querySelector('#seed').value),samples:Number(document.querySelector('#samples').value)},document.querySelector('#run-id').value.trim());document.querySelector('#cancel-btn').onclick=()=>command('run.cancel',{},document.querySelector('#run-id').value.trim());document.querySelector('#replay-btn').onclick=()=>{if(gateway&&gateway.readyState===WebSocket.OPEN)gateway.send(JSON.stringify({type:'replay',after_seq:0}));};
     const buildUrl='Build',loaderUrl=buildUrl+'/{{{ LOADER_FILENAME }}}';const config={dataUrl:buildUrl+'/{{{ DATA_FILENAME }}}',frameworkUrl:buildUrl+'/{{{ FRAMEWORK_FILENAME }}}',codeUrl:buildUrl+'/{{{ CODE_FILENAME }}}',streamingAssetsUrl:'StreamingAssets',companyName:'Fruitsim',productName:'Fruitsim Research Workbench',productVersion:'0.2',showBanner:(msg,type)=>log(`${type||'info'}: ${msg}`),devicePixelRatio:1};const script=document.createElement('script');script.src=loaderUrl;script.onload=()=>createUnityInstance(canvas,config,progress=>{document.querySelector('#progress div').style.width=`${progress*100}%`;}).then(instance=>{unityInstance=instance;document.querySelector('#loading').style.display='none';unityState.textContent='UNITY READY';log('Unity WebGL ready');}).catch(error=>{unityState.textContent='UNITY FAILED';log(`Unity load error: ${error}`);});document.body.appendChild(script);
   </script>
+  <script src="static/ml_p1.js"></script>
 </body>
 </html>

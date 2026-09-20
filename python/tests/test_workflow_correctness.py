@@ -28,6 +28,7 @@ from fruitsim_ml.workflow import (
     StageRun,
     deserialize_workflow_output,
     evaluate_predictions,
+    run_preprocessing_comparison,
     select_final_model_by_cv,
     serialize_workflow_output,
 )
@@ -195,6 +196,26 @@ class WorkflowCorrectnessTests(unittest.TestCase):
         self.assertIn("fit_indices", modeling.method_specs[0].resolved_parameters)
         self.assertIn("validation_indices", modeling.method_specs[0].resolved_parameters)
 
+    def test_preprocessing_comparison_accepts_parameterized_method_specs(self) -> None:
+        comparisons = run_preprocessing_comparison(
+            self.spectrum,
+            (
+                (MethodSpec("savgol", {"window_length": 5, "polyorder": 2}, invocation_id="sg-5"),),
+                (MethodSpec("savgol", {"window_length": 15, "polyorder": 2}, invocation_id="sg-15"),),
+            ),
+            seed=3,
+        )
+        self.assertEqual(
+            [stage.method_specs[0].invocation_id for stage in comparisons],
+            ["sg-5", "sg-15"],
+        )
+        self.assertEqual(
+            [stage.method_specs[0].resolved_parameters["window_length"] for stage in comparisons],
+            [5, 15],
+        )
+        self.assertFalse(np.allclose(comparisons[0].output.X, comparisons[1].output.X))
+        self.assertNotEqual(comparisons[0].cache_key, comparisons[1].cache_key)
+
     # D. Cache correctness
     def test_cache_identity_seed_metadata_chain_and_reload(self) -> None:
         cache = StageCache()
@@ -236,6 +257,19 @@ class WorkflowCorrectnessTests(unittest.TestCase):
         self.assertFalse(first.cache_hit)
         self.assertFalse(second.cache_hit)
         self.assertNotEqual(first.cache_key, second.cache_key)
+
+    def test_cache_reuse_keeps_current_invocation_identity(self) -> None:
+        cache = StageCache()
+        engine = PipelineEngine(cache=cache)
+        spec_a = MethodSpec("savgol", {"window_length": 5}, invocation_id="sg-a")
+        spec_b = MethodSpec("savgol", {"window_length": 5}, invocation_id="sg-b")
+        _, first = engine._stage_run(Stage.PREPROCESSING, [spec_a], self.spectrum, {}, 1, "data", "sg-a-run")
+        _, second = engine._stage_run(Stage.PREPROCESSING, [spec_b], self.spectrum, {}, 1, "data", "sg-b-run")
+        self.assertFalse(first.cache_hit)
+        self.assertTrue(second.cache_hit)
+        self.assertEqual(second.method_specs[0].invocation_id, "sg-b")
+        self.assertEqual(set(second.statistics), {"sg-b"})
+        self.assertEqual(second.execution_metadata["methods"][0]["invocation_id"], "sg-b")
 
     # E. Leakage
     def test_pca_fit_uses_only_fit_indices(self) -> None:
@@ -336,6 +370,62 @@ class WorkflowCorrectnessTests(unittest.TestCase):
         indices = selection.output.selected_indices
         self.assertTrue(np.array_equal(selection.output.X, source.X[:, indices]))
         self.assertEqual(selection.output.feature_names, tuple(source.feature_names[index] for index in indices))
+
+    def test_duplicate_methods_have_unique_invocations_and_exact_stage_references(self) -> None:
+        definition = PipelineDefinition(
+            preprocessing=(MethodSpec("snv", invocation_id="snv-main"),),
+            feature_analysis=(
+                MethodSpec(
+                    "cars",
+                    {"iterations": 3, "min_features": 5, "decay": 0.65, "pls_components": 2},
+                    invocation_id="cars-a",
+                ),
+                MethodSpec(
+                    "cars",
+                    {"iterations": 5, "min_features": 8, "decay": 0.80, "pls_components": 3},
+                    invocation_id="cars-b",
+                ),
+            ),
+            feature_selection=FeatureSelectionSpec(
+                MethodSpec("cars.select", invocation_id="cars-select-b"),
+                "cars-b",
+            ),
+            modeling=(
+                MethodSpec("plsr", {"n_components": 2}, invocation_id="plsr-2"),
+                MethodSpec("plsr", {"n_components": 5}, invocation_id="plsr-5"),
+            ),
+        )
+        experiment = self.run_experiment(definition)
+        analyses = [stage for stage in experiment.stage_runs if stage.stage is Stage.FEATURE_ANALYSIS]
+        self.assertEqual(
+            [stage.method_specs[0].invocation_id for stage in analyses],
+            ["cars-a", "cars-b"],
+        )
+        self.assertEqual([stage.method_chain for stage in analyses], [["cars"], ["cars"]])
+
+        selection = next(stage for stage in experiment.stage_runs if stage.stage is Stage.FEATURE_SELECTION)
+        cars_b_run = next(stage for stage in analyses if stage.method_specs[0].invocation_id == "cars-b")
+        self.assertEqual(selection.input_ref, f"stage:{cars_b_run.stage_run_id}")
+
+        model_runs = {
+            str(stage.method_specs[0].invocation_id): stage
+            for stage in experiment.stage_runs
+            if stage.stage is Stage.MODELING
+        }
+        self.assertEqual(set(model_runs), {"plsr-2", "plsr-5"})
+        expected_final = min(
+            model_runs,
+            key=lambda invocation_id: float(model_runs[invocation_id].output.evaluation.cv_rmse),
+        )
+        self.assertEqual(experiment.final_model_id, expected_final)
+
+        results = next(stage for stage in experiment.stage_runs if stage.stage is Stage.RESULTS)
+        selected_model_run = model_runs[expected_final]
+        self.assertEqual(results.input_ref, f"stage:{selected_model_run.stage_run_id}")
+        referenced_id = results.input_ref.removeprefix("stage:")
+        referenced_run = next(stage for stage in experiment.stage_runs if stage.stage_run_id == referenced_id)
+        self.assertIs(referenced_run, selected_model_run)
+        self.assertEqual(referenced_run.method_specs[0].invocation_id, experiment.final_model_id)
 
     def test_cars_select_rejects_pca_analysis(self) -> None:
         pca, _ = PipelineEngine()._stage_run(

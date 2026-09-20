@@ -17,7 +17,8 @@ namespace Fruitsim.UnityOptics
     [Serializable]
     public sealed class AppleVisualMaterial
     {
-        // Runtime-active: color. roughness/spotDensity/normalStrength are P0 metadata-only.
+        // P1 runtime-active visual controls. They are intentionally independent
+        // from ApplePhysicalProperties below.
         public Color color = new Color(0.48f, 0.035f, 0.025f, 1.0f);
         public float roughness = 0.68f;
         public float spotDensity = 0.0f;
@@ -27,8 +28,8 @@ namespace Fruitsim.UnityOptics
     [Serializable]
     public sealed class ApplePhysicalProperties
     {
-        // Physical properties are tracked for simulation provenance but do not
-        // alter the authored mesh/material in the P0 Unity renderer.
+        // Physical properties are tracked for simulation provenance and remain
+        // independent from the visible material in the Unity renderer.
         public float sscBrix = 12.5f;
         public float waterContent = 0.74f;
         public float absorptionScale = 1.0f;
@@ -58,8 +59,8 @@ namespace Fruitsim.UnityOptics
     {
         public string[] activeGeometryParameters = { "scale" };
         public string[] metadataOnlyGeometryParameters = { "heightRatio", "crownRatio", "asymmetry" };
-        public string[] activeVisualParameters = { "color" };
-        public string[] metadataOnlyVisualParameters = { "roughness", "spotDensity", "normalStrength" };
+        public string[] activeVisualParameters = { "color", "roughness", "spotDensity", "normalStrength" };
+        public string[] metadataOnlyVisualParameters = { };
         public string[] metadataOnlyPhysicalParameters =
         {
             "sscBrix", "waterContent", "absorptionScale", "reducedScatteringScale", "refractiveIndex"
