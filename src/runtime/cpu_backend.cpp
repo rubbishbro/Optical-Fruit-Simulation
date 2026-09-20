@@ -6,6 +6,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <limits>
 #include <mutex>
 #include <numeric>
 #include <thread>
@@ -155,6 +156,7 @@ SimulationResult CpuTransportBackend::run(
         std::vector<double> detected_path_weighted_sum_by_region(
             problem.domain.layers().size(), 0.0);
         double detected_zero_depth_weight = 0.0;
+        std::vector<std::vector<TrajectoryPoint>> detector_trace_candidates;
 
         for (const auto& batch : batches) {
             if (batch.photon_count == 0) {
@@ -195,6 +197,9 @@ SimulationResult CpuTransportBackend::run(
             }
             result.trajectories.insert(
                 result.trajectories.end(), batch.trajectories.begin(), batch.trajectories.end());
+            detector_trace_candidates.insert(
+                detector_trace_candidates.end(), batch.detector_trajectories.begin(),
+                batch.detector_trajectories.end());
         }
 
         if (result.photons > 0) {
@@ -252,6 +257,27 @@ SimulationResult CpuTransportBackend::run(
                 result.weighted_mean_flesh_path_mm =
                     result.weighted_mean_path_by_region_mm[region];
                 result.flesh_path_fraction = result.path_fraction_by_region[region];
+            }
+        }
+        if (problem.scoring.detector_trajectory_limit > 0) {
+            const std::size_t limit = problem.scoring.detector_trajectory_limit;
+            CounterRng reservoir_rng(
+                problem.execution.seed + wavelength_index,
+                std::numeric_limits<std::uint64_t>::max() - wavelength_index);
+            result.detector_trajectories.reserve(
+                std::min(limit, detector_trace_candidates.size()));
+            std::size_t seen = 0;
+            for (auto& candidate : detector_trace_candidates) {
+                ++seen;
+                if (result.detector_trajectories.size() < limit) {
+                    result.detector_trajectories.push_back(std::move(candidate));
+                    continue;
+                }
+                const auto replacement = static_cast<std::size_t>(
+                    reservoir_rng.uniform_open() * static_cast<double>(seen));
+                if (replacement < limit) {
+                    result.detector_trajectories[replacement] = std::move(candidate);
+                }
             }
         }
         output.wavelengths.push_back(std::move(result));

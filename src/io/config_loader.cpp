@@ -1,7 +1,11 @@
 #include "fruitsim/io/config_loader.hpp"
+#include "fruitsim/io/statistical_shape_loader.hpp"
 #include "fruitsim/transport/monte_carlo.hpp"
+#include "fruitsim/geometry/mesh_geometry.hpp"
 
+#include <algorithm>
 #include <fstream>
+#include <memory>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 
@@ -53,23 +57,57 @@ SimulationProblem load_simulation_config(const std::filesystem::path& path)
     }
 
     const auto& domain_json = root.at("domain");
-    if (domain_json.value("type", std::string{}) != "layered_sphere") {
-        throw std::invalid_argument("Only domain.type=layered_sphere is currently supported");
+    const std::string domain_type = domain_json.value("type", std::string{});
+    if (domain_type != "layered_sphere" && domain_type != "statistical_mesh") {
+        throw std::invalid_argument(
+            "domain.type must be layered_sphere or statistical_mesh");
     }
     std::vector<SphereLayer> layers;
-    for (const auto& layer : domain_json.at("layers_inner_to_outer")) {
-        layers.push_back({
-            layer.at("name").get<std::string>(),
-            layer.at("outer_radius_mm").get<double>(),
-        });
+    const auto& layer_json = domain_json.at("layers_inner_to_outer");
+    for (const auto& layer : layer_json) {
+        layers.push_back({layer.at("name").get<std::string>(),
+            layer.value("outer_radius_mm", 1.0)});
+    }
+    if (layers.empty() || (domain_type == "statistical_mesh" && layers.size() != 2)) {
+        throw std::invalid_argument("statistical_mesh currently requires flesh and skin layers");
+    }
+    std::shared_ptr<MeshGeometry> mesh_geometry;
+    const Vec3 center = read_vec3(
+        domain_json.value("center_mm", Json::array({0.0, 0.0, 0.0})), "domain.center_mm");
+    if (domain_type == "statistical_mesh") {
+        std::filesystem::path model_path = domain_json.at("model").get<std::string>();
+        if (model_path.is_relative()) model_path = path.parent_path() / model_path;
+        const auto shape = load_statistical_fuji_shape(model_path);
+        const auto outer = shape.sample_random(
+            domain_json.value("shape_seed", std::uint64_t{42}),
+            domain_json.value("shape_sample_id", std::uint64_t{0}),
+            domain_json.value("active_modes", std::size_t{0}),
+            domain_json.value("sigma_clip", 3.0));
+        const double skin_thickness = domain_json.value("skin_thickness_mm", 1.0);
+        if (skin_thickness <= 0.0) {
+            throw std::invalid_argument("domain.skin_thickness_mm must be positive");
+        }
+        StatisticalShapeMesh inner = outer;
+        for (std::size_t index = 0; index < outer.vertices_mm.size(); ++index) {
+            const Vec3 offset = outer.vertices_mm[index] - center;
+            const double radius = offset.norm();
+            if (radius <= skin_thickness) {
+                throw std::invalid_argument("skin thickness exceeds sampled mesh radius");
+            }
+            inner.vertices_mm[index] = center
+                + offset * ((radius - skin_thickness) / radius);
+        }
+        double maximum_radius = 0.0;
+        for (const auto& vertex : outer.vertices_mm) {
+            maximum_radius = std::max(maximum_radius, (vertex - center).norm());
+        }
+        layers[0].outer_radius_mm = std::max(0.1, maximum_radius - skin_thickness);
+        layers[1].outer_radius_mm = maximum_radius;
+        mesh_geometry = std::make_shared<MeshGeometry>(outer, std::move(inner), center);
     }
 
     SimulationProblem problem{
-        LayeredSphere{
-            read_vec3(domain_json.value("center_mm", Json::array({0.0, 0.0, 0.0})),
-                "domain.center_mm"),
-            std::move(layers),
-        },
+        LayeredSphere{center, std::move(layers)}, mesh_geometry,
     };
     problem.exterior_refractive_index = domain_json.value("exterior_refractive_index", 1.0);
 
@@ -170,6 +208,10 @@ SimulationProblem load_simulation_config(const std::filesystem::path& path)
     problem.scoring.grid_size = scoring.value("grid_size", std::size_t{0});
     problem.scoring.depth_bins = scoring.value("depth_bins", std::size_t{64});
     problem.scoring.trajectory_limit = scoring.value("trajectory_limit", std::size_t{0});
+    problem.scoring.detector_trajectory_limit = scoring.value(
+        "detector_trajectory_limit", std::size_t{0});
+    problem.scoring.trajectory_mode = scoring.value(
+        "trajectory_mode", std::string{"all"});
 
     for (const auto& spectral : root.at("spectra")) {
         SpectralMedium medium;

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rubbishbro/Optical-Fruit-Simulation/command.schema.json",
+  "title": "Fruitsim low-latency command",
+  "type": "object",
+  "required": ["protocol", "type", "command_id", "name", "payload", "client_ts"],
+  "properties": {
+    "protocol": {"const": 1},
+    "type": {"const": "command"},
+    "command_id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "name": {"type": "string", "minLength": 1, "maxLength": 160},
+    "run_id": {"type": ["string", "null"]},
+    "payload": {"type": "object"},
+    "client_ts": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": false
+}

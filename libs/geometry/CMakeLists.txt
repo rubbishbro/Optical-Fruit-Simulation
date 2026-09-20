@@ -1,5 +1,6 @@
 add_library(fruitsim_geometry
     ${PROJECT_SOURCE_DIR}/src/geometry/layered_sphere.cpp
+    ${PROJECT_SOURCE_DIR}/src/geometry/mesh_geometry.cpp
     ${PROJECT_SOURCE_DIR}/src/geometry/statistical_fuji_shape.cpp
 )
 add_library(fruitsim::geometry ALIAS fruitsim_geometry)

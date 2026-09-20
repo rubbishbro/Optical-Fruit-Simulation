@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rubbishbro/Optical-Fruit-Simulation/unity_command.schema.json",
+  "title": "Fruitsim Unity command payload",
+  "type": "object",
+  "required": ["command", "payload"],
+  "properties": {
+    "command": {"type": "string", "enum": ["load_run", "set_wavelength", "play_path", "pause", "reset", "set_camera"]},
+    "payload": {"type": "object"}
+  },
+  "additionalProperties": false
+}

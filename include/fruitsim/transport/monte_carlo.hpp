@@ -28,6 +28,7 @@ struct BatchResult {
     double detected_zero_depth_weight = 0.0;
     std::vector<double> detected_depth_histogram;
     std::vector<TrajectoryPoint> trajectories;
+    std::vector<std::vector<TrajectoryPoint>> detector_trajectories;
 };
 
 struct SourceLaunch {

@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "session": {
+    "id": "statistical_mesh_cpu_demo",
+    "cultivar": "StatisticalFujiShape",
+    "dataset_id": "statistical_fuji_shape_zenodo_v1",
+    "source_type": "shape_model",
+    "transport_mode": "scalar",
+    "photons_per_wavelength": 3000,
+    "seed": 20260909,
+    "threads": 1,
+    "batch_size": 500,
+    "max_reduction_batches": 64,
+    "max_events": 100000,
+    "boundary_epsilon_mm": 1e-7,
+    "backend": "cpu",
+    "assumptions": [
+      "CPU reference transport on a sampled statistical triangle mesh",
+      "The source and detector geometry are demonstration assumptions",
+      "The bundled source record does not verify the apple cultivar as Fuji"
+    ]
+  },
+  "domain": {
+    "type": "statistical_mesh",
+    "model": "../data/shape_models/statistical_fuji_shape_zenodo_v1.json",
+    "shape_seed": 42,
+    "shape_sample_id": 0,
+    "active_modes": 8,
+    "sigma_clip": 3.0,
+    "skin_thickness_mm": 1.0,
+    "center_mm": [0.0, 0.0, 0.0],
+    "exterior_refractive_index": 1.0,
+    "layers_inner_to_outer": [
+      {"name": "flesh", "outer_radius_mm": 39.0},
+      {"name": "skin", "outer_radius_mm": 40.0}
+    ]
+  },
+  "source": {
+    "type": "pencil",
+    "position_mm": [0.0, 0.0, -45.0],
+    "direction": [0.0, 0.0, 1.0]
+  },
+  "instrument": {
+    "detector": {
+      "enabled": true,
+      "type": "circular",
+      "center_mm": [0.0, 0.0, -41.25],
+      "axis": [0.0, 0.0, 1.0],
+      "radius_mm": 10.47,
+      "acceptance_half_angle_deg": 90.0
+    }
+  },
+  "roulette": {"threshold": 0.0001, "survival_probability": 0.1},
+  "scoring": {
+    "radial_bins": 40,
+    "radial_max_mm": 40.0,
+    "grid_size": 21,
+    "depth_bins": 80,
+    "trajectory_limit": 0,
+    "detector_trajectory_limit": 50,
+    "trajectory_mode": "detector_only"
+  },
+  "spectra": [
+    {"wavelength_nm": 650, "regions": {
+      "flesh": {"mu_a_mm_inv": 0.022, "mu_s_prime_mm_inv": 0.985, "g": 0.90, "refractive_index": 1.36},
+      "skin": {"mu_a_mm_inv": 0.042, "mu_s_prime_mm_inv": 1.170, "g": 0.90, "refractive_index": 1.36}}},
+    {"wavelength_nm": 800, "regions": {
+      "flesh": {"mu_a_mm_inv": 0.017, "mu_s_prime_mm_inv": 0.970, "g": 0.90, "refractive_index": 1.36},
+      "skin": {"mu_a_mm_inv": 0.033, "mu_s_prime_mm_inv": 1.140, "g": 0.90, "refractive_index": 1.36}}},
+    {"wavelength_nm": 950, "regions": {
+      "flesh": {"mu_a_mm_inv": 0.029, "mu_s_prime_mm_inv": 0.955, "g": 0.90, "refractive_index": 1.36},
+      "skin": {"mu_a_mm_inv": 0.048, "mu_s_prime_mm_inv": 1.110, "g": 0.90, "refractive_index": 1.36}}}
+  ]
+}

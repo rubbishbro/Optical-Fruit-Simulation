@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "source": "results/ml_golden_demo",
+  "data_boundary": "synthetic demonstration; not a real-apple performance claim",
+  "best": {
+    "run_id": "combined__savgol__svr",
+    "feature_set": "combined",
+    "preprocessing": "savgol",
+    "model": "svr",
+    "best_params": {
+      "model__C": 100.0,
+      "model__epsilon": 0.05,
+      "model__gamma": "scale"
+    },
+    "rmsec": 0.2465578392072863,
+    "rmsecv": 0.254485275513466,
+    "rmsep": 0.2661462863631391,
+    "validation_r2": 0.9746958818711002,
+    "validation_rp": 0.9877667138781836,
+    "validation_rmse": 0.2661462863631391,
+    "validation_mae": 0.20933539225070652,
+    "validation_bias": -0.03269990433325707,
+    "validation_rpd": 6.307494669174301,
+    "calibration_samples": 450,
+    "validation_samples": 150,
+    "feature_count": 102
+  },
+  "validation_prediction_count": 150
+}

@@ -22,6 +22,9 @@ def main() -> None:
     validate.add_argument("--input", type=Path, required=True)
     experimental = commands.add_parser("validate-experimental")
     experimental.add_argument("--input", type=Path, required=True)
+    visualize = commands.add_parser("visualize-run")
+    visualize.add_argument("--run-dir", type=Path, required=True)
+    visualize.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
     if args.command == "generate-demo":
         print(generate_synthetic_golden_delicious(args.output, args.samples, args.seed))
@@ -30,6 +33,9 @@ def main() -> None:
     elif args.command == "validate-data":
         import json
         print(json.dumps(validate_dataset(args.input), indent=2))
+    elif args.command == "visualize-run":
+        from .visualize import build_visualizations
+        print(build_visualizations(args.run_dir, args.output))
     else:
         import json
         try:
