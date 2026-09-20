@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rubbishbro/Optical-Fruit-Simulation/sample_table.schema.json",
+  "title": "fruitsim sample table contract",
+  "description": "Column contract for data/samples.csv. The file itself remains CSV for MVP portability.",
+  "type": "object",
+  "required": ["required_columns"],
+  "properties": {
+    "required_columns": {
+      "const": ["sample_id", "fruit_id", "batch_id", "source_type"]
+    },
+    "optional_columns": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "units": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    }
+  },
+  "additionalProperties": false
+}

@@ -17,11 +17,15 @@ dependencies = [
 
 [project.optional-dependencies]
 shape-view = ["matplotlib>=3.8,<4"]
+visualize = ["matplotlib>=3.8,<4"]
 
 [project.scripts]
 fruitsim-ml = "fruitsim_ml.__main__:main"
 fruitsim-shape = "fruitsim_shape.__main__:main"
+fruitsim-pipeline = "fruitsim_pipeline.__main__:main"
+fruitsim-student = "fruitsim_pipeline.student_demo:main"
+fruitsim-gateway = "fruitsim_gateway.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["fruitsim_ml*", "fruitsim_shape*"]
+include = ["fruitsim_ml*", "fruitsim_shape*", "fruitsim_pipeline*", "fruitsim_protocol*", "fruitsim_gateway*"]

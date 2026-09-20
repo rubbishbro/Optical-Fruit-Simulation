@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rubbishbro/Optical-Fruit-Simulation/command_ack.schema.json",
+  "title": "Fruitsim command acknowledgement",
+  "type": "object",
+  "required": ["protocol", "type", "command_id", "accepted", "server_ts", "error"],
+  "properties": {
+    "protocol": {"const": 1},
+    "type": {"const": "command_ack"},
+    "command_id": {"type": "string", "minLength": 1, "maxLength": 160},
+    "accepted": {"type": "boolean"},
+    "server_ts": {"type": "string", "minLength": 1},
+    "error": {"type": ["object", "null"]}
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/rubbishbro/Optical-Fruit-Simulation/run_manifest.schema.json",
+  "title": "fruitsim immutable run manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "created_at",
+    "status",
+    "source_type",
+    "generator_version",
+    "configuration_hash",
+    "seed",
+    "software",
+    "git_commit",
+    "backend",
+    "coordinate_system",
+    "data_status",
+    "model_status",
+    "warnings",
+    "artifacts_index"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "run_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"},
+    "parent_run_id": {"type": ["string", "null"]},
+    "created_at": {"type": "string", "minLength": 1},
+    "status": {"$ref": "run_status.schema.json#/definitions/state"},
+    "source_type": {
+      "enum": [
+        "synthetic_math",
+        "synthetic_physics",
+        "literature_constrained",
+        "real_measurement",
+        "hybrid_calibrated"
+      ]
+    },
+    "generator_version": {"type": "string", "minLength": 1},
+    "configuration_hash": {"type": "string", "minLength": 1},
+    "seed": {"type": "integer", "minimum": 0},
+    "software": {"type": "object", "additionalProperties": {"type": "string"}},
+    "git_commit": {"type": ["string", "null"]},
+    "backend": {"enum": ["cpu", "cuda", "mixed", "none"]},
+    "coordinate_system": {"$ref": "#/definitions/coordinateSystem"},
+    "data_status": {"type": "string", "minLength": 1},
+    "model_status": {
+      "enum": [
+        "method_demo",
+        "synthetic_simulation_demo",
+        "experimental_pending_validation",
+        "experiment_calibrated"
+      ]
+    },
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "artifacts_index": {"const": "artifacts.json"},
+    "notes": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "coordinateSystem": {
+      "type": "object",
+      "required": ["name", "handedness", "up_axis", "length_unit", "world_to_unity"],
+      "properties": {
+        "name": {"const": "fruitsim_rh_y_up"},
+        "handedness": {"const": "right"},
+        "up_axis": {"const": "+Y"},
+        "length_unit": {"const": "mm"},
+        "world_to_unity": {
+          "type": "array",
+          "minItems": 16,
+          "maxItems": 16,
+          "items": {"type": "number"}
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

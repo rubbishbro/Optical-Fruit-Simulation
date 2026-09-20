@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Fruitsim.UnityOptics
 {
@@ -47,37 +48,90 @@ namespace Fruitsim.UnityOptics
         [SerializeField] private bool showDirectionRays = true;
         [SerializeField] private float directionRayLength = 1.4f;
         [SerializeField] private Color directionRayColor = new Color(1.0f, 0.35f, 0.05f, 0.8f);
+        [SerializeField, Range(400.0f, 1100.0f)] private float wavelengthNm = 700.0f;
 
         private Transform ringLightRig;
         private Transform coaxialLightRig;
         private Transform debugRayRig;
         private LineRenderer ringGuide;
+        private Material debugLineMaterial;
+        private Light coaxialLight;
         private readonly List<Light> ringLights = new List<Light>();
         private readonly List<LineRenderer> directionRays = new List<LineRenderer>();
+        private Renderer[] appleRenderers = Array.Empty<Renderer>();
+        private bool appleRenderersDirty = true;
+        private bool visualsAvailable;
         private OpticalConfiguration latestConfiguration;
         private bool dirty = true;
+        private int rebuildCount;
+        private float lastRebuildMilliseconds;
 
         public event Action<OpticalConfiguration> ConfigurationChanged;
-        public IlluminationMode Mode { get => illuminationMode; set { illuminationMode = value; dirty = true; } }
-        public int LightCount { get => lightCount; set { lightCount = Mathf.Max(1, value); dirty = true; } }
-        public float RingRadius { get => ringRadius; set { ringRadius = Mathf.Max(0.001f, value); dirty = true; } }
+        public IlluminationMode Mode { get => illuminationMode; set { if (illuminationMode != value) { illuminationMode = value; dirty = true; } } }
+        public int LightCount { get => lightCount; set { int next = Mathf.Max(1, value); if (lightCount != next) { lightCount = next; dirty = true; } } }
+        public float RingRadius { get => ringRadius; set { float next = Mathf.Max(0.001f, value); if (!Mathf.Approximately(ringRadius, next)) { ringRadius = next; dirty = true; } } }
         public bool UseRatioScale { get => useRatioScale; set { if (useRatioScale != value) { useRatioScale = value; dirty = true; } } }
-        public float RingRadiusRatio { get => ringRadiusRatio; set { ringRadiusRatio = Mathf.Max(0.001f, value); dirty = true; } }
-        public float RingHeightRatio { get => ringHeightRatio; set { ringHeightRatio = value; dirty = true; } }
-        public float RingHeightOffset { get => ringHeightOffset; set { ringHeightOffset = value; dirty = true; } }
-        public float LightTiltDeg { get => lightTiltDeg; set { lightTiltDeg = Mathf.Clamp(value, 0.0f, 89.0f); dirty = true; } }
-        public float BeamDivergenceDeg { get => beamDivergenceDeg; set { beamDivergenceDeg = Mathf.Clamp(value, 0.0f, 90.0f); dirty = true; } }
-        public float TargetHeightOffset { get => targetHeightOffset; set { targetHeightOffset = value; dirty = true; } }
-        public float TargetHeightRatio { get => targetHeightRatio; set { targetHeightRatio = value; dirty = true; } }
-        public float TotalOpticalPower { get => totalOpticalPower; set { totalOpticalPower = Mathf.Max(0.0f, value); dirty = true; } }
-        public float SensorRadius { get => sensorRadius; set { sensorRadius = Mathf.Max(0.001f, value); dirty = true; } }
-        public float SensorVerticalOffset { get => sensorVerticalOffset; set { sensorVerticalOffset = Mathf.Max(0.001f, value); dirty = true; } }
-        public float SensorFOVDeg { get => sensorFOVDeg; set { sensorFOVDeg = Mathf.Clamp(value, 1.0f, 180.0f); dirty = true; } }
+        public float RingRadiusRatio { get => ringRadiusRatio; set { float next = Mathf.Max(0.001f, value); if (!Mathf.Approximately(ringRadiusRatio, next)) { ringRadiusRatio = next; dirty = true; } } }
+        public float RingHeightRatio { get => ringHeightRatio; set { if (!Mathf.Approximately(ringHeightRatio, value)) { ringHeightRatio = value; dirty = true; } } }
+        public float RingHeightOffset { get => ringHeightOffset; set { if (!Mathf.Approximately(ringHeightOffset, value)) { ringHeightOffset = value; dirty = true; } } }
+        public float LightTiltDeg { get => lightTiltDeg; set { float next = Mathf.Clamp(value, 0.0f, 89.0f); if (!Mathf.Approximately(lightTiltDeg, next)) { lightTiltDeg = next; dirty = true; } } }
+        public float BeamDivergenceDeg { get => beamDivergenceDeg; set { float next = Mathf.Clamp(value, 0.0f, 90.0f); if (!Mathf.Approximately(beamDivergenceDeg, next)) { beamDivergenceDeg = next; dirty = true; } } }
+        public float TargetHeightOffset { get => targetHeightOffset; set { if (!Mathf.Approximately(targetHeightOffset, value)) { targetHeightOffset = value; dirty = true; } } }
+        public float TargetHeightRatio { get => targetHeightRatio; set { if (!Mathf.Approximately(targetHeightRatio, value)) { targetHeightRatio = value; dirty = true; } } }
+        public float TotalOpticalPower { get => totalOpticalPower; set { float next = Mathf.Max(0.0f, value); if (!Mathf.Approximately(totalOpticalPower, next)) { totalOpticalPower = next; dirty = true; } } }
+        public float SensorRadius { get => sensorRadius; set { float next = Mathf.Max(0.001f, value); if (!Mathf.Approximately(sensorRadius, next)) { sensorRadius = next; dirty = true; } } }
+        public float SensorVerticalOffset { get => sensorVerticalOffset; set { float next = Mathf.Max(0.001f, value); if (!Mathf.Approximately(sensorVerticalOffset, next)) { sensorVerticalOffset = next; dirty = true; } } }
+        public float SensorFOVDeg { get => sensorFOVDeg; set { float next = Mathf.Clamp(value, 1.0f, 180.0f); if (!Mathf.Approximately(sensorFOVDeg, next)) { sensorFOVDeg = next; dirty = true; } } }
         public bool SensorUseRatioScale { get => sensorUseRatioScale; set { if (sensorUseRatioScale != value) { sensorUseRatioScale = value; dirty = true; } } }
-        public float SensorOffsetRatio { get => sensorOffsetRatio; set { sensorOffsetRatio = Mathf.Max(0.001f, value); dirty = true; } }
+        public float SensorOffsetRatio { get => sensorOffsetRatio; set { float next = Mathf.Max(0.001f, value); if (!Mathf.Approximately(sensorOffsetRatio, next)) { sensorOffsetRatio = next; dirty = true; } } }
+        public int RebuildCount => rebuildCount;
+        public float LastRebuildMilliseconds => lastRebuildMilliseconds;
+        public int PooledLightCount => ringLights.Count + (coaxialLight == null ? 0 : 1);
+        public int PooledRayCount => directionRays.Count;
+
+        public void UseExternalSensorVisuals()
+        {
+            if (sensorModel != null) sensorModel.VisualsEnabled = false;
+        }
+
+        [Serializable]
+        private sealed class WebOpticalParameters
+        {
+            public float wavelength_nm;
+            public float ring_radius_ratio;
+            public float ring_height_ratio;
+            public float incident_angle_deg;
+            public float beam_divergence_deg;
+            public float optical_power;
+            public float sensor_radius_ratio;
+            public float sensor_offset_ratio;
+            public float sensor_fov_deg;
+            public bool show_rays;
+        }
+
+        /// <summary>Entry point used by the surrounding WebGL research UI.</summary>
+        public void ApplyWebParameters(string json)
+        {
+            WebOpticalParameters parameters = JsonUtility.FromJson<WebOpticalParameters>(json);
+            if (parameters == null) return;
+            wavelengthNm = Mathf.Clamp(parameters.wavelength_nm, 400.0f, 1100.0f);
+            RingRadiusRatio = parameters.ring_radius_ratio;
+            RingHeightRatio = parameters.ring_height_ratio;
+            LightTiltDeg = parameters.incident_angle_deg;
+            BeamDivergenceDeg = parameters.beam_divergence_deg;
+            TotalOpticalPower = parameters.optical_power;
+            SensorRadius = parameters.sensor_radius_ratio;
+            SensorOffsetRatio = parameters.sensor_offset_ratio;
+            SensorFOVDeg = parameters.sensor_fov_deg;
+            showDirectionRays = parameters.show_rays;
+            directionRayColor = WavelengthToDisplayColor(wavelengthNm);
+            UpdateAuthoredEmitterColor(directionRayColor);
+            dirty = true;
+        }
 
         private void Awake()
         {
+            visualsAvailable = SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null;
             if (sensorModel == null)
             {
                 GameObject sensor = new GameObject("SensorRig");
@@ -95,6 +149,13 @@ namespace Fruitsim.UnityOptics
         public void SetAppleRoot(Transform root)
         {
             appleRoot = root;
+            appleRenderersDirty = true;
+            dirty = true;
+        }
+
+        public void MarkGeometryDirty()
+        {
+            appleRenderersDirty = true;
             dirty = true;
         }
 
@@ -106,7 +167,9 @@ namespace Fruitsim.UnityOptics
 
         public void RebuildRig()
         {
+            float rebuildStart = Time.realtimeSinceStartup;
             dirty = false;
+            rebuildCount++;
             Bounds bounds = CalculateAppleBounds();
             Vector3 appleCenter = bounds.center;
             float appleHeight = Mathf.Max(0.001f, bounds.size.y);
@@ -117,9 +180,20 @@ namespace Fruitsim.UnityOptics
             float ringY = appleCenter.y + ringOffsetWorld;
             Vector3 target = appleCenter + Vector3.up * targetOffsetWorld;
 
-            EnsureRigs();
-            BuildRingLights(appleCenter, ringY, ringRadiusWorld, target);
-            BuildCoaxialVisual(appleCenter, appleHeight);
+            if (visualsAvailable && autoCreateVisuals)
+            {
+                EnsureRigs();
+                if (illuminationMode == IlluminationMode.RingIllumination)
+                {
+                    BuildRingLights(appleCenter, ringY, ringRadiusWorld, target, appleHeight);
+                }
+                else
+                {
+                    ringLightRig.gameObject.SetActive(false);
+                    debugRayRig.gameObject.SetActive(false);
+                }
+                BuildCoaxialVisual(appleCenter, appleHeight);
+            }
             sensorModel.SensorRadius = sensorRadius;
             sensorModel.SensorVerticalOffset = sensorVerticalOffset;
             sensorModel.SensorFOVDeg = sensorFOVDeg;
@@ -128,23 +202,31 @@ namespace Fruitsim.UnityOptics
             sensorModel.Configure(appleCenter, ringY, appleHeight);
 
             bool ringActive = illuminationMode == IlluminationMode.RingIllumination;
-            ringLightRig.gameObject.SetActive(ringActive);
-            coaxialLightRig.gameObject.SetActive(!ringActive);
+            if (visualsAvailable && autoCreateVisuals)
+            {
+                ringLightRig.gameObject.SetActive(ringActive);
+                coaxialLightRig.gameObject.SetActive(!ringActive);
+            }
             latestConfiguration = ringActive
                 ? BuildRingConfiguration(appleCenter, ringY, ringRadiusWorld, target)
                 : BuildCoaxialConfiguration(appleCenter, appleHeight);
             ConfigurationChanged?.Invoke(latestConfiguration);
+            lastRebuildMilliseconds = (Time.realtimeSinceStartup - rebuildStart) * 1000.0f;
         }
 
         private Bounds CalculateAppleBounds()
         {
             if (appleRoot == null)
                 return new Bounds(transform.position, Vector3.one * 2.0f);
-            Renderer[] renderers = appleRoot.GetComponentsInChildren<Renderer>();
-            if (renderers.Length == 0)
+            if (appleRenderersDirty)
+            {
+                appleRenderers = appleRoot.GetComponentsInChildren<Renderer>();
+                appleRenderersDirty = false;
+            }
+            if (appleRenderers.Length == 0)
                 return new Bounds(appleRoot.position, Vector3.one * 2.0f);
-            Bounds result = renderers[0].bounds;
-            for (int i = 1; i < renderers.Length; i++) result.Encapsulate(renderers[i].bounds);
+            Bounds result = appleRenderers[0].bounds;
+            for (int i = 1; i < appleRenderers.Length; i++) result.Encapsulate(appleRenderers[i].bounds);
             return result;
         }
 
@@ -173,19 +255,20 @@ namespace Fruitsim.UnityOptics
                 ringGuide.loop = true;
                 ringGuide.useWorldSpace = false;
                 ringGuide.widthMultiplier = 0.012f;
-                ringGuide.material = new Material(Shader.Find("Sprites/Default"));
+                debugLineMaterial = CreateOptionalMaterial("Sprites/Default", "Fruitsim_DebugLineMaterial");
+                if (debugLineMaterial != null) ringGuide.sharedMaterial = debugLineMaterial;
                 ringGuide.startColor = new Color(1.0f, 0.45f, 0.05f, 0.3f);
                 ringGuide.endColor = ringGuide.startColor;
             }
         }
 
-        private void BuildRingLights(Vector3 center, float ringY, float radius, Vector3 target)
+        private void BuildRingLights(Vector3 center, float ringY, float radius, Vector3 target, float appleHeight)
         {
             ringLightRig.position = center;
-            ClearChildrenExcept(ringLightRig, ringGuide != null ? ringGuide.transform : null);
-            ClearChildren(debugRayRig);
-            ringLights.Clear();
-            directionRays.Clear();
+            Color displayColor = WavelengthToDisplayColor(wavelengthNm);
+            displayColor.a = 0.88f;
+            ringGuide.startColor = new Color(displayColor.r, displayColor.g, displayColor.b, 0.34f);
+            ringGuide.endColor = ringGuide.startColor;
             float tilt = lightTiltDeg * Mathf.Deg2Rad;
             ringGuide.positionCount = Mathf.Max(32, lightCount * 4);
             for (int i = 0; i < ringGuide.positionCount; i++)
@@ -201,55 +284,76 @@ namespace Fruitsim.UnityOptics
                 if (inward.sqrMagnitude < 1.0e-6f)
                     inward = new Vector3(center.x - position.x, 0.0f, center.z - position.z).normalized;
                 Vector3 direction = (inward * Mathf.Cos(tilt) + Vector3.up * Mathf.Sin(tilt)).normalized;
-                GameObject visual = new GameObject($"Light_{i:00}");
-                visual.transform.SetParent(ringLightRig, false);
+                Light spot = GetOrCreateRingLight(i);
+                GameObject visual = spot.gameObject;
                 visual.transform.SetPositionAndRotation(position, Quaternion.LookRotation(direction, Vector3.up));
-                Light spot = visual.AddComponent<Light>();
+                visual.SetActive(true);
                 spot.type = LightType.Spot;
-                spot.range = appleHeightForVisual() * 2.5f;
+                spot.range = Mathf.Max(1.0f, appleHeight) * 2.5f;
                 spot.spotAngle = Mathf.Clamp(beamDivergenceDeg * 2.0f, 1.0f, 179.0f);
                 spot.intensity = lightCount > 0 ? totalOpticalPower / lightCount : 0.0f;
-                spot.color = new Color(1.0f, 0.12f, 0.02f);
-                ringLights.Add(spot);
-                if (showDirectionRays) AddDebugRay(position, position + direction * directionRayLength);
+                spot.color = displayColor;
+                LineRenderer ray = GetOrCreateDirectionRay(i);
+                ray.gameObject.SetActive(showDirectionRays);
+                ray.startColor = displayColor;
+                ray.endColor = displayColor;
+                if (showDirectionRays)
+                {
+                    ray.SetPosition(0, position);
+                    ray.SetPosition(1, position + direction * directionRayLength);
+                }
             }
+            for (int i = lightCount; i < ringLights.Count; i++) ringLights[i].gameObject.SetActive(false);
+            for (int i = lightCount; i < directionRays.Count; i++) directionRays[i].gameObject.SetActive(false);
             debugRayRig.gameObject.SetActive(showDirectionRays && illuminationMode == IlluminationMode.RingIllumination);
         }
 
-        private float appleHeightForVisual()
+        private Light GetOrCreateRingLight(int index)
         {
-            return Mathf.Max(1.0f, CalculateAppleBounds().size.y);
+            while (ringLights.Count <= index)
+            {
+                GameObject visual = new GameObject($"Light_{ringLights.Count:00}");
+                visual.transform.SetParent(ringLightRig, false);
+                ringLights.Add(visual.AddComponent<Light>());
+            }
+            return ringLights[index];
         }
 
-        private void AddDebugRay(Vector3 start, Vector3 end)
+        private LineRenderer GetOrCreateDirectionRay(int index)
         {
-            GameObject rayObject = new GameObject("DirectionRay");
-            rayObject.transform.SetParent(debugRayRig, false);
-            LineRenderer line = rayObject.AddComponent<LineRenderer>();
-            line.positionCount = 2;
-            line.SetPosition(0, start);
-            line.SetPosition(1, end);
-            line.useWorldSpace = true;
-            line.widthMultiplier = 0.018f;
-            line.material = new Material(Shader.Find("Sprites/Default"));
-            line.startColor = directionRayColor;
-            line.endColor = directionRayColor;
-            directionRays.Add(line);
+            while (directionRays.Count <= index)
+            {
+                GameObject rayObject = new GameObject($"DirectionRay_{directionRays.Count:00}");
+                rayObject.transform.SetParent(debugRayRig, false);
+                LineRenderer line = rayObject.AddComponent<LineRenderer>();
+                line.positionCount = 2;
+                line.useWorldSpace = true;
+                line.widthMultiplier = 0.018f;
+                if (debugLineMaterial != null) line.sharedMaterial = debugLineMaterial;
+                line.startColor = directionRayColor;
+                line.endColor = directionRayColor;
+                directionRays.Add(line);
+            }
+            return directionRays[index];
         }
 
         private void BuildCoaxialVisual(Vector3 center, float appleHeight)
         {
-            ClearChildren(coaxialLightRig);
-            GameObject source = new GameObject("CoaxialSource");
-            source.transform.SetParent(coaxialLightRig, false);
-            source.transform.position = center + Vector3.up * (coaxialSourceHeightRatio * appleHeight);
-            source.transform.rotation = Quaternion.LookRotation(Vector3.up);
-            Light light = source.AddComponent<Light>();
-            light.type = LightType.Spot;
-            light.range = appleHeight * 2.5f;
-            light.spotAngle = coaxialBeamDivergenceDeg * 2.0f;
-            light.intensity = coaxialOpticalPower;
-            light.color = new Color(1.0f, 0.12f, 0.02f);
+            if (coaxialLight == null)
+            {
+                GameObject source = new GameObject("CoaxialSource");
+                source.transform.SetParent(coaxialLightRig, false);
+                coaxialLight = source.AddComponent<Light>();
+            }
+            GameObject sourceObject = coaxialLight.gameObject;
+            sourceObject.transform.position = center + Vector3.up * (coaxialSourceHeightRatio * appleHeight);
+            sourceObject.transform.rotation = Quaternion.LookRotation(Vector3.up);
+            sourceObject.SetActive(true);
+            coaxialLight.type = LightType.Spot;
+            coaxialLight.range = appleHeight * 2.5f;
+            coaxialLight.spotAngle = coaxialBeamDivergenceDeg * 2.0f;
+            coaxialLight.intensity = coaxialOpticalPower;
+            coaxialLight.color = new Color(1.0f, 0.12f, 0.02f);
         }
 
         private OpticalConfiguration BuildRingConfiguration(Vector3 center, float ringY, float radius, Vector3 target)
@@ -307,18 +411,37 @@ namespace Fruitsim.UnityOptics
             };
         }
 
-        private static void ClearChildren(Transform parent)
+        private static Material CreateOptionalMaterial(string shaderName, string materialName)
         {
-            for (int i = parent.childCount - 1; i >= 0; i--)
-                Destroy(parent.GetChild(i).gameObject);
+            Shader shader = Shader.Find(shaderName);
+            if (shader == null) return null;
+            return new Material(shader) { name = materialName };
         }
 
-        private static void ClearChildrenExcept(Transform parent, Transform keep)
+        private static Color WavelengthToDisplayColor(float wavelength)
         {
-            for (int i = parent.childCount - 1; i >= 0; i--)
+            // Visible wavelengths use an approximate display colour. NIR is
+            // intentionally shown as muted crimson because a monitor cannot
+            // emit 780–1100 nm; the UI labels this as false colour.
+            if (wavelength >= 780.0f) return new Color(0.55f, 0.08f, 0.12f, 0.88f);
+            float r = 0.0f, g = 0.0f, b = 0.0f;
+            if (wavelength < 440.0f) { r = -(wavelength - 440.0f) / 60.0f; b = 1.0f; }
+            else if (wavelength < 490.0f) { g = (wavelength - 440.0f) / 50.0f; b = 1.0f; }
+            else if (wavelength < 510.0f) { g = 1.0f; b = -(wavelength - 510.0f) / 20.0f; }
+            else if (wavelength < 580.0f) { r = (wavelength - 510.0f) / 70.0f; g = 1.0f; }
+            else if (wavelength < 645.0f) { r = 1.0f; g = -(wavelength - 645.0f) / 65.0f; }
+            else { r = 1.0f; }
+            return new Color(Mathf.Clamp01(r), Mathf.Clamp01(g), Mathf.Clamp01(b), 0.88f);
+        }
+
+        private static void UpdateAuthoredEmitterColor(Color color)
+        {
+            Renderer[] renderers = FindObjectsByType<Renderer>(FindObjectsSortMode.None);
+            foreach (Renderer renderer in renderers)
             {
-                if (parent.GetChild(i) != keep)
-                    Destroy(parent.GetChild(i).gameObject);
+                if (!renderer.name.StartsWith("RingLampEmitter_", StringComparison.Ordinal)) continue;
+                renderer.material.color = color;
+                renderer.material.SetColor("_Color", color);
             }
         }
     }

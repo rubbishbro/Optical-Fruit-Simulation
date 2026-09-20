@@ -22,5 +22,16 @@ data/external/
 data/shape_models/generated/
 python/*.egg-info/
 python/**/__pycache__/
+scripts/__pycache__/
 *.joblib
 imgui.ini
+
+# Canonical Unity application generated state.
+apps/fruitsim_unity/Library/
+apps/fruitsim_unity/Temp/
+apps/fruitsim_unity/Logs/
+apps/fruitsim_unity/UserSettings/
+apps/fruitsim_unity/obj/
+apps/fruitsim_unity/*.csproj
+apps/fruitsim_unity/*.sln
+apps/fruitsim_unity/*.slnx

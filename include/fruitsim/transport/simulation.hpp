@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -50,6 +51,8 @@ struct ScoringOptions {
     std::size_t grid_size = 0;
     std::size_t depth_bins = 64;
     std::size_t trajectory_limit = 0;
+    std::size_t detector_trajectory_limit = 0;
+    std::string trajectory_mode = "all";
 };
 
 struct ExecutionOptions {
@@ -76,6 +79,7 @@ struct SimulationMetadata {
 
 struct SimulationProblem {
     LayeredSphere domain;
+    std::shared_ptr<class MeshGeometry> mesh_geometry;
     double exterior_refractive_index = 1.0;
     PhotonSource source;
     CircularDetector detector;
@@ -84,8 +88,9 @@ struct SimulationProblem {
     ExecutionOptions execution;
     SimulationMetadata metadata;
 
-    explicit SimulationProblem(LayeredSphere domain_value)
-        : domain(std::move(domain_value))
+    explicit SimulationProblem(LayeredSphere domain_value,
+        std::shared_ptr<MeshGeometry> mesh_geometry_value = {})
+        : domain(std::move(domain_value)), mesh_geometry(std::move(mesh_geometry_value))
     {
     }
 
@@ -100,6 +105,9 @@ struct PhotonState {
     std::size_t wavelength_index = 0;
     std::uint64_t photon_id = 0;
     std::uint32_t event_count = 0;
+    bool entered_tissue = false;
+    bool detector_accepted = false;
+    bool escaped = false;
 };
 
 struct TrajectoryPoint {
@@ -108,6 +116,7 @@ struct TrajectoryPoint {
     Vec3 position_mm{};
     double weight = 0.0;
     int region = kExteriorRegion;
+    bool detector_accepted = false;
 };
 
 struct WavelengthResult {
@@ -143,6 +152,7 @@ struct WavelengthResult {
     double skin_path_fraction = 0.0;
     double flesh_path_fraction = 0.0;
     std::vector<TrajectoryPoint> trajectories;
+    std::vector<std::vector<TrajectoryPoint>> detector_trajectories;
 };
 
 struct SimulationResult {

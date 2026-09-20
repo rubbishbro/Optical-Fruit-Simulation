@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Fruitsim 光学与机器学习实验台</title>
+  <style>
+    :root { --paper:#f5f6f4; --sheet:#fff; --ink:#17212b; --muted:#64717d; --line:#cdd4d9; --blue:#205c86; --blue-soft:#e9f0f5; --orange:#b45f38; --ok:#276749; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--paper); font:14px/1.45 Arial,"Noto Sans SC",sans-serif; }
+    button,input,select { font:inherit; }
+    header { display:flex; align-items:end; gap:34px; padding:18px 28px 0; background:var(--sheet); border-bottom:1px solid var(--line); }
+    .brand { min-width:270px; padding-bottom:15px; }
+    .brand h1 { margin:0; font-size:20px; font-weight:650; letter-spacing:.02em; }
+    .brand p { margin:3px 0 0; color:var(--muted); font-size:12px; }
+    nav { display:flex; gap:2px; align-self:stretch; }
+    nav button { border:0; border-bottom:3px solid transparent; background:transparent; color:#49545f; padding:0 16px; cursor:pointer; }
+    nav button.active { color:var(--blue); border-color:var(--blue); font-weight:650; }
+    .connection { margin-left:auto; margin-bottom:15px; font:12px ui-monospace,monospace; color:var(--muted); }
+    .connection.online { color:var(--ok); }
+    main { max-width:1500px; margin:0 auto; padding:20px 24px 30px; }
+    .view { display:none; }
+    .view.active { display:block; }
+    .view-title { display:flex; justify-content:space-between; align-items:start; margin-bottom:14px; }
+    .view-title h2 { margin:0 0 3px; font-size:18px; }
+    .view-title p { margin:0; color:var(--muted); }
+    .tag { border:1px solid var(--line); padding:4px 8px; background:var(--sheet); color:var(--muted); font:11px ui-monospace,monospace; }
+    .sheet { background:var(--sheet); border:1px solid var(--line); }
+    .sim-grid { display:grid; grid-template-columns:minmax(640px,1fr) 330px; gap:16px; }
+    .viewer { padding:10px; }
+    .viewer-bar { height:38px; display:flex; align-items:center; gap:7px; padding:0 2px 9px; color:var(--muted); font-size:12px; }
+    .viewer-bar strong { color:var(--ink); margin-right:auto; font-size:13px; }
+    .small-button { width:auto; border:1px solid #aeb8bf; background:#fff; color:#33404b; padding:5px 9px; cursor:pointer; }
+    .small-button:hover { border-color:var(--blue); color:var(--blue); }
+    #unity-container { position:relative; height:650px; background:#dfe3e3; overflow:hidden; border:1px solid #bbc3c8; }
+    #unity-canvas { width:100%; height:100%; background:#dfe3e3; }
+    #loading { position:absolute; inset:0; display:grid; place-content:center; gap:10px; background:#eef0ee; z-index:2; text-align:center; color:var(--muted); }
+    #progress { width:240px; height:5px; background:#d3d9dc; }
+    #progress div { height:100%; width:0; background:var(--blue); }
+    .params { padding:16px; }
+    .params h3 { margin:0 0 12px; font-size:13px; text-transform:uppercase; letter-spacing:.08em; }
+    .param-row { display:grid; grid-template-columns:1fr 94px 36px; gap:8px; align-items:center; padding:7px 0; border-bottom:1px solid #e4e7e9; }
+    .param-row label { color:#394550; font-size:12px; }
+    .param-row input { width:100%; border:1px solid #b8c1c7; background:#fff; padding:5px 6px; text-align:right; font-family:ui-monospace,monospace; }
+    .param-row span { color:var(--muted); font-size:11px; }
+    .param-row.check { grid-template-columns:1fr 26px; }
+    .param-row.check input { width:auto; }
+    .primary { width:100%; margin-top:14px; border:1px solid #16496c; background:var(--blue); color:#fff; padding:8px 10px; cursor:pointer; }
+    .note { margin:12px 0 0; color:var(--muted); font-size:12px; }
+    .figure-grid { display:grid; grid-template-columns:230px minmax(0,1fr); gap:16px; }
+    .figure-menu { padding:8px; }
+    .figure-menu button { width:100%; text-align:left; border:0; border-left:3px solid transparent; background:transparent; padding:10px 9px; cursor:pointer; color:#35414b; }
+    .figure-menu button.active { border-color:var(--blue); background:var(--blue-soft); color:var(--blue); }
+    .figure-stage { min-height:690px; padding:16px; display:flex; flex-direction:column; }
+    .figure-stage h3 { margin:0; font-size:16px; }
+    .figure-stage p { margin:4px 0 12px; color:var(--muted); }
+    .figure-stage img { display:block; width:100%; height:610px; object-fit:contain; background:#fff; border-top:1px solid #e1e5e7; }
+    .pipeline { display:grid; grid-template-columns:repeat(7,1fr); align-items:center; margin-bottom:16px; }
+    .pipeline .step { min-height:82px; padding:11px; border:1px solid #aeb8bf; background:#fff; position:relative; }
+    .pipeline .step:not(:last-child)::after { content:"→"; position:absolute; right:-18px; top:28px; z-index:2; color:var(--orange); font-size:20px; }
+    .pipeline .step + .step { margin-left:12px; }
+    .step b { display:block; color:var(--blue); font-size:12px; margin-bottom:4px; }
+    .step span { color:var(--muted); font-size:11px; }
+    .kpis { display:grid; grid-template-columns:repeat(6,1fr); border:1px solid var(--line); background:#fff; margin-bottom:16px; }
+    .kpi { padding:12px; border-right:1px solid var(--line); }
+    .kpi:last-child { border:0; }
+    .kpi span { display:block; color:var(--muted); font-size:11px; }
+    .kpi strong { display:block; margin-top:3px; font:600 18px ui-monospace,monospace; }
+    .ml-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .ml-figure { padding:12px; }
+    .ml-figure h3 { margin:0 0 3px; font-size:14px; }
+    .ml-figure p { margin:0 0 8px; color:var(--muted); font-size:12px; }
+    .ml-figure img { width:100%; height:430px; object-fit:contain; border-top:1px solid #e1e5e7; }
+    .guardrails { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:16px; }
+    .guardrails div { border-left:3px solid var(--blue); background:#fff; padding:10px 12px; }
+    .guardrails b { display:block; font-size:12px; }
+    .guardrails span { color:var(--muted); font-size:11px; }
+    .run-grid { display:grid; grid-template-columns:390px 1fr; gap:16px; }
+    .run-controls,.run-log { padding:16px; }
+    .form-row { display:grid; grid-template-columns:120px 1fr; gap:10px; align-items:center; margin-bottom:9px; }
+    .form-row label { color:var(--muted); }
+    .form-row input,.form-row select { border:1px solid #b8c1c7; padding:7px; background:#fff; }
+    .button-row { display:flex; gap:8px; margin-top:12px; }
+    .button-row button { border:1px solid #8f9ca5; background:#fff; padding:7px 11px; cursor:pointer; }
+    .button-row .run { background:var(--blue); color:#fff; border-color:var(--blue); }
+    .status-table { display:grid; grid-template-columns:repeat(5,1fr); border:1px solid var(--line); margin-bottom:12px; }
+    .status-table div { padding:8px; border-right:1px solid var(--line); overflow:hidden; }
+    .status-table span { display:block; color:var(--muted); font-size:10px; text-transform:uppercase; }
+    .status-table strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:12px ui-monospace,monospace; }
+    #event-log { height:500px; overflow:auto; white-space:pre-wrap; background:#111820; color:#d7e0e7; padding:12px; font:12px/1.55 ui-monospace,monospace; }
+    .boundary { margin-top:16px; padding:9px 11px; border:1px solid #dbc7b9; background:#fbf6f1; color:#70442e; font-size:12px; }
+    @media (max-width:1050px) { .sim-grid,.figure-grid,.run-grid,.ml-grid { grid-template-columns:1fr; } .pipeline { grid-template-columns:1fr; gap:6px; } .pipeline .step + .step { margin-left:0; } .pipeline .step:not(:last-child)::after { content:"↓"; right:14px; top:58px; } .kpis { grid-template-columns:repeat(3,1fr); } #unity-container { height:520px; } }
+    @media (max-width:720px) { header { display:block; padding:14px 14px 0; } nav { height:44px; overflow:auto; } nav button { white-space:nowrap; padding:0 10px; } .connection { position:absolute; right:14px; top:18px; } main { padding:14px; } .guardrails { grid-template-columns:1fr; } .kpis { grid-template-columns:repeat(2,1fr); } #unity-container { height:400px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand"><h1>Fruitsim 实验台</h1><p>果实组织光传输 · 数据处理 · 机器学习</p></div>
+    <nav aria-label="主页面"><button class="active" data-page="simulation">光学仿真</button><button data-page="figures">结果图像</button><button data-page="ml">ML 链路</button><button data-page="run">运行与审计</button></nav>
+    <span id="connection" class="connection">GATEWAY OFFLINE</span>
+  </header>
+  <main>
+    <section id="page-simulation" class="view active">
+      <div class="view-title"><div><h2>三维光学装置</h2><p>Blender 几何 + Unity WebGL 交互光路；拖动旋转，滚轮缩放。</p></div><span id="unity-state" class="tag">UNITY LOADING</span></div>
+      <div class="sim-grid">
+        <div class="sheet viewer">
+          <div class="viewer-bar"><strong>Ring illumination / detector geometry</strong><button id="zoom-in" class="small-button">放大</button><button id="zoom-out" class="small-button">缩小</button><button id="reset-view" class="small-button">复位视角</button><button id="fullscreen" class="small-button">全屏</button></div>
+          <div id="unity-container"><div id="loading"><span>正在载入 Unity WebGL 仪器模型</span><div id="progress"><div></div></div></div><canvas id="unity-canvas" tabindex="-1" aria-label="可旋转缩放的 Unity 光学仿真"></canvas></div>
+        </div>
+        <aside class="sheet params">
+          <h3>仿真参数</h3>
+          <div class="param-row"><label for="wavelength">波长</label><input id="wavelength" type="number" value="700" min="400" max="1100"><span>nm</span></div>
+          <div class="param-row"><label>环形光源数量</label><input value="12" disabled><span>个</span></div>
+          <div class="param-row"><label for="ring-radius">灯环半径 / 果实半径</label><input id="ring-radius" type="number" value="1.08" min="0.5" max="1.5" step="0.01"><span>ratio</span></div>
+          <div class="param-row"><label for="ring-height">灯环高度 / 果实高度</label><input id="ring-height" type="number" value="-0.28" min="-1" max="0.25" step="0.01"><span>ratio</span></div>
+          <div class="param-row"><label for="incident-angle">光源倾角</label><input id="incident-angle" type="number" value="35" min="0" max="89"><span>deg</span></div>
+          <div class="param-row"><label for="divergence">光束发散半角</label><input id="divergence" type="number" value="12" min="0" max="90"><span>deg</span></div>
+          <div class="param-row"><label for="optical-power">总相对光功率</label><input id="optical-power" type="number" value="1" min="0" max="10" step="0.1"><span>a.u.</span></div>
+          <div class="param-row"><label for="sensor-radius">探测器半径 / 果实半径</label><input id="sensor-radius" type="number" value="0.35" min="0.01" max="0.5" step="0.01"><span>ratio</span></div>
+          <div class="param-row"><label for="sensor-offset">探测器偏移 / 果实高度</label><input id="sensor-offset" type="number" value="0.18" min="0.01" max="0.75" step="0.01"><span>ratio</span></div>
+          <div class="param-row"><label for="sensor-fov">探测器视场角</label><input id="sensor-fov" type="number" value="70" min="1" max="180"><span>deg</span></div>
+          <div class="param-row check"><label for="show-rays">显示方向光线</label><input id="show-rays" type="checkbox" checked></div>
+          <button id="apply-optics" class="primary">应用参数到 Unity</button>
+          <p id="parameter-status" class="note">参数尚未修改。780–1100 nm 在显示器上以暗红伪彩表示。</p>
+        </aside>
+      </div>
+    </section>
+    <section id="page-figures" class="view">
+      <div class="view-title"><div><h2>仿真与数据图像</h2><p>图像来自项目内已生成的物理仿真与合成数据 Run，可在左侧直接切换。</p></div><span class="tag">SOURCE-BACKED FIGURES</span></div>
+      <div class="figure-grid"><aside id="figure-menu" class="sheet figure-menu" aria-label="图像选择"></aside><article class="sheet figure-stage"><h3 id="figure-title"></h3><p id="figure-note"></p><img id="figure-image" alt="Fruitsim 仿真结果图"></article></div>
+      <div class="boundary">说明：吸收热力图和光子路径图用于解释模拟机制；它们不是苹果内部真实成像结果。数值结果需结合 Run manifest、能量审计和参数配置解读。</div>
+    </section>
+    <section id="page-ml" class="view">
+      <div class="view-title"><div><h2>机器学习处理链路</h2><p>从光学/光谱输入到验证集指标，展示处理步骤、数据隔离和模型结果。</p></div><span class="tag">SYNTHETIC DEMONSTRATION</span></div>
+      <div class="pipeline" aria-label="机器学习流水线"><div class="step"><b>01 数据来源</b><span>Run manifest 与光谱表</span></div><div class="step"><b>02 数据校验</b><span>样本键、波长网格、单位</span></div><div class="step"><b>03 划分</b><span>校准集 450 / 验证集 150</span></div><div class="step"><b>04 预处理</b><span>Savitzky–Golay，仅在训练折拟合</span></div><div class="step"><b>05 特征</b><span>组合光谱特征 102 维</span></div><div class="step"><b>06 模型</b><span>SVR / PLSR / RF / MLR</span></div><div class="step"><b>07 验证</b><span>R²、RMSEP、MAE、RPD</span></div></div>
+      <div class="kpis"><div class="kpi"><span>最佳模型</span><strong id="kpi-model">SVR</strong></div><div class="kpi"><span>预处理</span><strong id="kpi-preprocess">SavGol</strong></div><div class="kpi"><span>验证 R²</span><strong id="kpi-r2">0.975</strong></div><div class="kpi"><span>RMSEP</span><strong id="kpi-rmsep">0.266</strong></div><div class="kpi"><span>RPD</span><strong id="kpi-rpd">6.31</strong></div><div class="kpi"><span>验证样本</span><strong id="kpi-n">150</strong></div></div>
+      <div class="ml-grid"><article class="sheet ml-figure"><h3>预测值与参考值</h3><p>验证集，虚线为理想 1:1；单位 °Brix。</p><img src="static/ml_prediction_scatter.png" alt="验证集预测散点图"></article><article class="sheet ml-figure"><h3>候选流水线比较</h3><p>按验证 RMSEP 排序，越低越好；仅展示前八项。</p><img src="static/ml_model_comparison.png" alt="模型误差比较图"></article></div>
+      <div class="guardrails"><div><b>划分先于预处理</b><span>验证样本不参与滤波器、缩放器或模型拟合。</span></div><div><b>目标不进入特征</b><span>SSC 标签与特征矩阵分离，测试覆盖名称与列级泄漏。</span></div><div><b>结果边界</b><span>这些指标来自合成教学数据，不作为真实苹果精度声明。</span></div></div>
+    </section>
+    <section id="page-run" class="view">
+      <div class="view-title"><div><h2>运行与审计</h2><p>启动可重复 Run，观察命令确认、状态推进和事件重放。</p></div><span class="tag">PROTOCOL v1</span></div>
+      <div class="run-grid"><div class="sheet run-controls"><div class="form-row"><label for="run-id">Run ID</label><input id="run-id" value="web_demo_seed20260920"></div><div class="form-row"><label for="seed">随机种子</label><input id="seed" type="number" value="20260920"></div><div class="form-row"><label for="samples">样本数量</label><select id="samples"><option value="60">60 · 快速</option><option value="120" selected>120 · 标准</option><option value="300">300 · 讲解</option></select></div><div class="form-row"><label for="gateway-port">Gateway 端口</label><input id="gateway-port" type="number" value="8765"></div><div class="button-row"><button id="connect-btn">连接 Gateway</button><button id="start-btn" class="run">生成 Demo Run</button></div><div class="button-row"><button id="cancel-btn">请求取消</button><button id="replay-btn">重放事件</button></div><p class="note">运行数据写入服务器端 Run 目录；浏览器只显示状态和经过审计的结果入口。</p></div><div class="sheet run-log"><div class="status-table"><div><span>Gateway</span><strong id="gateway-state">offline</strong></div><div><span>Sequence</span><strong id="last-seq">0</strong></div><div><span>State</span><strong id="run-state">idle</strong></div><div><span>Stage</span><strong id="run-stage">-</strong></div><div><span>Run path</span><strong id="run-path">-</strong></div></div><div id="event-log">Waiting for Gateway…</div></div></div>
+    </section>
+  </main>
+  <script>
+    const canvas=document.querySelector('#unity-canvas'),connection=document.querySelector('#connection'),gatewayState=document.querySelector('#gateway-state'),logBox=document.querySelector('#event-log'),unityState=document.querySelector('#unity-state');
+    let gateway=null,lastSeq=0,unityInstance=null;
+    document.querySelectorAll('nav button').forEach(button=>button.onclick=()=>{document.querySelectorAll('nav button').forEach(item=>item.classList.toggle('active',item===button));document.querySelectorAll('.view').forEach(view=>view.classList.toggle('active',view.id===`page-${button.dataset.page}`));if(button.dataset.page==='simulation'&&unityInstance)setTimeout(()=>window.dispatchEvent(new Event('resize')),0);});
+    const figures=[['吸收分布热力图','static/absorption_heatmap.png','组织截面内的归一化吸收沉积分布；颜色表示相对强度。'],['加权光子路径','static/photon_paths.png','蒙特卡洛光子在果实组织中的加权轨迹与终止位置。'],['样本 × 波长热力图','static/spectra_heatmap.png','32 个合成样本、51 个波长点的反射率矩阵。'],['代表性光谱','static/spectra_overview.png','抽样光谱曲线与总体均值，用于观察波段形态。'],['PCA 散点图','static/pca_scatter.png','光谱标准化后的前两个主成分；颜色为合成 SSC proxy。'],['波长相关热力图','static/proxy_correlation_heatmap.png','各波长与合成 SSC proxy 的 Pearson 相关系数。'],['探测器响应谱','static/detector_spectrum.png','探测反射率与有效光子计数，避免只看平滑曲线而忽略采样支持。'],['探测深度统计','static/detector_path_statistics.png','有效光子的平均穿透深度与果肉路径比例。'],['能量守恒审计','static/energy_audit.png','检查 1 − R − T − A − discarded 的数值残差。']];
+    const figureMenu=document.querySelector('#figure-menu');
+    function showFigure(index){const[title,src,note]=figures[index];document.querySelector('#figure-title').textContent=title;document.querySelector('#figure-note').textContent=note;document.querySelector('#figure-image').src=src;document.querySelectorAll('#figure-menu button').forEach((button,i)=>button.classList.toggle('active',i===index));}
+    figures.forEach((figure,index)=>{const button=document.createElement('button');button.textContent=`${String(index+1).padStart(2,'0')}  ${figure[0]}`;button.onclick=()=>showFigure(index);figureMenu.appendChild(button);});showFigure(0);
+    function sendUnity(objectName,method,value){if(!unityInstance)return false;if(value===undefined)unityInstance.SendMessage(objectName,method);else unityInstance.SendMessage(objectName,method,value);return true;}
+    document.querySelector('#zoom-in').onclick=()=>sendUnity('FruitsimOrbitCamera','ZoomIn');document.querySelector('#zoom-out').onclick=()=>sendUnity('FruitsimOrbitCamera','ZoomOut');document.querySelector('#reset-view').onclick=()=>sendUnity('FruitsimOrbitCamera','ResetView');document.querySelector('#fullscreen').onclick=()=>document.querySelector('#unity-container').requestFullscreen();
+    document.querySelector('#apply-optics').onclick=()=>{const payload={wavelength_nm:Number(document.querySelector('#wavelength').value),ring_radius_ratio:Number(document.querySelector('#ring-radius').value),ring_height_ratio:Number(document.querySelector('#ring-height').value),incident_angle_deg:Number(document.querySelector('#incident-angle').value),beam_divergence_deg:Number(document.querySelector('#divergence').value),optical_power:Number(document.querySelector('#optical-power').value),sensor_radius_ratio:Number(document.querySelector('#sensor-radius').value),sensor_offset_ratio:Number(document.querySelector('#sensor-offset').value),sensor_fov_deg:Number(document.querySelector('#sensor-fov').value),show_rays:document.querySelector('#show-rays').checked};const sent=sendUnity('FruitsimOpticsExperiment','ApplyWebParameters',JSON.stringify(payload));document.querySelector('#parameter-status').textContent=sent?`已应用：${payload.wavelength_nm} nm，倾角 ${payload.incident_angle_deg}°，功率 ${payload.optical_power}`:'Unity 尚未就绪，参数未发送。';command('viewer.set_wavelength',{wavelength_nm:payload.wavelength_nm},document.querySelector('#run-id').value.trim(),true);};
+    fetch('static/ml_summary.json').then(response=>response.json()).then(summary=>{const best=summary.best;document.querySelector('#kpi-model').textContent=best.model.toUpperCase();document.querySelector('#kpi-preprocess').textContent=best.preprocessing;document.querySelector('#kpi-r2').textContent=best.validation_r2.toFixed(3);document.querySelector('#kpi-rmsep').textContent=best.rmsep.toFixed(3);document.querySelector('#kpi-rpd').textContent=best.validation_rpd.toFixed(2);document.querySelector('#kpi-n').textContent=best.validation_samples;}).catch(()=>{});
+    function setConnection(text,online){connection.textContent=online?'GATEWAY ONLINE':'GATEWAY '+text.toUpperCase();connection.classList.toggle('online',!!online);gatewayState.textContent=text;}
+    function log(message){const time=new Date().toLocaleTimeString();if(logBox.textContent==='Waiting for Gateway…')logBox.textContent='';logBox.textContent+=`[${time}] ${message}\n`;logBox.scrollTop=logBox.scrollHeight;}
+    function gatewayUrl(){const scheme=location.protocol==='https:'?'wss':'ws';return`${scheme}://${location.hostname}:${Number(document.querySelector('#gateway-port').value)||8765}`;}
+    function command(name,payload,runId,quiet=false){if(!gateway||gateway.readyState!==WebSocket.OPEN){if(!quiet)log('Gateway 未连接，命令未发送');return;}const message={protocol:1,type:'command',command_id:`web-${Date.now()}-${Math.random().toString(16).slice(2)}`,name,run_id:runId||null,payload:payload||{},client_ts:new Date().toISOString()};gateway.send(JSON.stringify(message));log(`→ command ${name}`);}
+    function connect(){if(gateway&&gateway.readyState===WebSocket.OPEN){gateway.close();return;}setConnection('connecting',false);gateway=new WebSocket(gatewayUrl());gateway.onopen=()=>{setConnection('connected',true);log(`Gateway connected: ${gatewayUrl()}`);gateway.send(JSON.stringify({type:'replay',after_seq:lastSeq}));};gateway.onclose=()=>setConnection('offline',false);gateway.onerror=()=>{setConnection('error',false);log('Gateway WebSocket error');};gateway.onmessage=event=>{let message;try{message=JSON.parse(event.data);}catch(_){log('← invalid JSON');return;}if(message.type==='hello'){lastSeq=Math.max(lastSeq,message.latest_seq||0);document.querySelector('#last-seq').textContent=lastSeq;log(`← hello latest_seq=${lastSeq}`);return;}if(message.type==='command_ack'){log(`← ack ${message.command_id}: ${message.accepted?'accepted':'rejected'}`);return;}if(message.type==='event'){lastSeq=Math.max(lastSeq,message.seq||0);document.querySelector('#last-seq').textContent=lastSeq;const p=message.payload||{};document.querySelector('#run-state').textContent=message.status||'-';document.querySelector('#run-stage').textContent=message.stage||'-';if(p.run_dir)document.querySelector('#run-path').textContent=p.run_dir;log(`← #${message.seq} ${message.kind} · ${message.stage}/${message.status}`);}};}
+    document.querySelector('#connect-btn').onclick=connect;document.querySelector('#start-btn').onclick=()=>command('run.start',{mode:'math',seed:Number(document.querySelector('#seed').value),samples:Number(document.querySelector('#samples').value)},document.querySelector('#run-id').value.trim());document.querySelector('#cancel-btn').onclick=()=>command('run.cancel',{},document.querySelector('#run-id').value.trim());document.querySelector('#replay-btn').onclick=()=>{if(gateway&&gateway.readyState===WebSocket.OPEN)gateway.send(JSON.stringify({type:'replay',after_seq:0}));};
+    const buildUrl='Build',loaderUrl=buildUrl+'/{{{ LOADER_FILENAME }}}';const config={dataUrl:buildUrl+'/{{{ DATA_FILENAME }}}',frameworkUrl:buildUrl+'/{{{ FRAMEWORK_FILENAME }}}',codeUrl:buildUrl+'/{{{ CODE_FILENAME }}}',streamingAssetsUrl:'StreamingAssets',companyName:'Fruitsim',productName:'Fruitsim Research Workbench',productVersion:'0.2',showBanner:(msg,type)=>log(`${type||'info'}: ${msg}`),devicePixelRatio:1};const script=document.createElement('script');script.src=loaderUrl;script.onload=()=>createUnityInstance(canvas,config,progress=>{document.querySelector('#progress div').style.width=`${progress*100}%`;}).then(instance=>{unityInstance=instance;document.querySelector('#loading').style.display='none';unityState.textContent='UNITY READY';log('Unity WebGL ready');}).catch(error=>{unityState.textContent='UNITY FAILED';log(`Unity load error: ${error}`);});document.body.appendChild(script);
+  </script>
+</body>
+</html>
