@@ -130,6 +130,21 @@ class SpectrumSet:
             merged,
         )
 
+    @property
+    def computational_metadata(self) -> dict[str, Any]:
+        """Metadata that is allowed to affect numerical execution and caching.
+
+        ``metadata["display"]`` is deliberately excluded.  Existing top-level
+        fields remain computational for backward compatibility, while new
+        callers should put presentation-only labels under ``display``.
+        """
+        return {key: value for key, value in self.metadata.items() if key != "display"}
+
+    @property
+    def display_metadata(self) -> dict[str, Any]:
+        value = self.metadata.get("display", {})
+        return dict(value) if isinstance(value, Mapping) else {}
+
 
 @dataclass
 class LatentFeatureSet:
@@ -231,6 +246,24 @@ class PredictionSet:
             raise ValueError("fold_ids must match prediction rows")
         self.metadata = dict(self.metadata)
 
+    def view(self, split_name: str) -> "PredictionSet":
+        indices = np.asarray([index for index, name in enumerate(self.split) if name == split_name], dtype=int)
+        return PredictionSet(
+            tuple(self.sample_ids[index] for index in indices),
+            self.y_true[indices],
+            self.y_pred[indices],
+            self.residuals[indices],
+            tuple(self.split[index] for index in indices),
+            tuple(self.fold_ids[index] for index in indices),
+            {**self.metadata, "view_split": split_name},
+        )
+
+    def calibration_view(self) -> "PredictionSet":
+        return self.view("calibration")
+
+    def validation_view(self) -> "PredictionSet":
+        return self.view("validation")
+
 
 @dataclass
 class EvaluationResult:
@@ -303,6 +336,81 @@ class MethodExecutionResult:
 
 
 MethodExecutor = Callable[[Any, Mapping[str, Any], int], MethodExecutionResult]
+ParameterValidator = Callable[[Mapping[str, Any]], None]
+
+
+@dataclass(frozen=True)
+class ParameterDefinition:
+    default: Any
+    value_type: type | tuple[type, ...]
+    minimum: float | None = None
+    maximum: float | None = None
+
+    def validate(self, name: str, value: Any) -> Any:
+        # bool is an int subclass but is never a useful numerical method value.
+        if isinstance(value, bool) or not isinstance(value, self.value_type):
+            expected = self.value_type if isinstance(self.value_type, tuple) else (self.value_type,)
+            names = "/".join(item.__name__ for item in expected)
+            raise ValueError(f"parameter {name} must be {names}")
+        if self.minimum is not None and value < self.minimum:
+            raise ValueError(f"parameter {name} must be >= {self.minimum}")
+        if self.maximum is not None and value > self.maximum:
+            raise ValueError(f"parameter {name} must be <= {self.maximum}")
+        return value
+
+
+@dataclass(frozen=True)
+class MethodSpec:
+    method_id: str
+    parameters: dict[str, Any] = field(default_factory=dict)
+    resolved_parameters: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "method_id", str(self.method_id))
+        object.__setattr__(self, "parameters", copy.deepcopy(dict(self.parameters)))
+        object.__setattr__(self, "resolved_parameters", copy.deepcopy(dict(self.resolved_parameters)))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "method_id": self.method_id,
+            "parameters": _json_value(self.parameters),
+            "resolved_parameters": _json_value(self.resolved_parameters),
+        }
+
+    @classmethod
+    def from_dict(cls, document: Mapping[str, Any]) -> "MethodSpec":
+        return cls(
+            str(document["method_id"]),
+            _from_json_value(document.get("parameters", {})),
+            _from_json_value(document.get("resolved_parameters", {})),
+        )
+
+
+def _method_spec(value: str | MethodSpec | Mapping[str, Any]) -> MethodSpec:
+    if isinstance(value, MethodSpec):
+        return value
+    if isinstance(value, str):
+        return MethodSpec(value)
+    if isinstance(value, Mapping):
+        return MethodSpec.from_dict(value)
+    raise TypeError(f"invalid method specification: {type(value).__name__}")
+
+
+@dataclass(frozen=True)
+class FeatureSelectionSpec:
+    method: MethodSpec = field(default_factory=lambda: MethodSpec("cars.select"))
+    source_analysis_id: str = "cars"
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "method", _method_spec(self.method))
+        object.__setattr__(self, "source_analysis_id", str(self.source_analysis_id))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"method": self.method.to_dict(), "source_analysis_id": self.source_analysis_id}
+
+    @classmethod
+    def from_dict(cls, document: Mapping[str, Any]) -> "FeatureSelectionSpec":
+        return cls(_method_spec(document["method"]), str(document["source_analysis_id"]))
 
 
 @dataclass
@@ -312,9 +420,37 @@ class Method:
     stage: Stage
     input_type: DataKind
     output_type: DataKind
-    parameter_schema: dict[str, Any]
+    parameter_schema: dict[str, ParameterDefinition]
     execute: MethodExecutor
     metadata: dict[str, Any] = field(default_factory=dict)
+    runtime_parameters: tuple[str, ...] = ()
+    seed_sensitive: bool = False
+    parameter_validator: ParameterValidator | None = None
+
+    def resolve_parameters(
+        self,
+        explicit: Mapping[str, Any],
+        runtime: Mapping[str, Any] | None = None,
+        saved_resolved: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        unknown = set(explicit) - set(self.parameter_schema)
+        if unknown:
+            raise ValueError(f"unknown parameters for {self.id}: {sorted(unknown)}")
+        resolved = {name: copy.deepcopy(rule.default) for name, rule in self.parameter_schema.items()}
+        if saved_resolved:
+            saved_user = {key: value for key, value in saved_resolved.items() if key in self.parameter_schema}
+            resolved.update(copy.deepcopy(saved_user))
+        resolved.update(copy.deepcopy(dict(explicit)))
+        for name, rule in self.parameter_schema.items():
+            resolved[name] = rule.validate(name, resolved[name])
+        runtime = dict(runtime or {})
+        disallowed_runtime = set(runtime) - set(self.runtime_parameters)
+        if disallowed_runtime:
+            raise ValueError(f"runtime parameters not accepted by {self.id}: {sorted(disallowed_runtime)}")
+        resolved.update(copy.deepcopy(runtime))
+        if self.parameter_validator is not None:
+            self.parameter_validator(resolved)
+        return resolved
 
 
 class MethodRegistry:
@@ -347,6 +483,16 @@ def _fit_indices(parameters: Mapping[str, Any], count: int) -> np.ndarray:
     indices = np.asarray(parameters.get("fit_indices", np.arange(count)), dtype=int)
     if indices.ndim != 1 or len(indices) == 0 or np.any(indices < 0) or np.any(indices >= count):
         raise ValueError("fit_indices must contain valid non-empty row indices")
+    return indices
+
+
+def _validation_indices(parameters: Mapping[str, Any], count: int, fit: np.ndarray) -> np.ndarray:
+    indices = np.asarray(parameters.get("validation_indices", np.setdiff1d(np.arange(count), fit)), dtype=int)
+    if indices.ndim != 1 or len(indices) == 0 or np.any(indices < 0) or np.any(indices >= count):
+        raise ValueError("validation_indices must contain valid non-empty row indices")
+    overlap = np.intersect1d(fit, indices)
+    if len(overlap):
+        raise ValueError("fit_indices and validation_indices must be disjoint")
     return indices
 
 
@@ -384,11 +530,10 @@ def _savgol(values: Any, parameters: Mapping[str, Any], seed: int) -> MethodExec
     if not isinstance(values, SpectrumSet):
         raise TypeError("Savitzky-Golay expects SpectrumSet")
     requested = int(parameters.get("window_length", 9))
-    window = min(requested, values.X.shape[1] if values.X.shape[1] % 2 else values.X.shape[1] - 1)
-    window = max(3, window)
-    if window % 2 == 0:
-        window -= 1
-    polyorder = min(int(parameters.get("polyorder", 2)), window - 1)
+    if requested > values.X.shape[1]:
+        raise ValueError("Savitzky-Golay window_length exceeds feature count")
+    window = requested
+    polyorder = int(parameters.get("polyorder", 2))
     smoothed = savgol_filter(values.X, window_length=window, polyorder=polyorder, axis=1)
     output = _copy_spectrum(values, X=smoothed, method_id="savgol")
     return MethodExecutionResult(
@@ -449,6 +594,20 @@ def _safe_pls_components(features: int, samples: int, requested: int) -> int:
     return max(1, min(int(requested), features, max(1, samples - 1)))
 
 
+def _validate_savgol_parameters(parameters: Mapping[str, Any]) -> None:
+    window = int(parameters["window_length"])
+    polyorder = int(parameters["polyorder"])
+    if window % 2 == 0:
+        raise ValueError("parameter window_length must be odd")
+    if polyorder >= window:
+        raise ValueError("parameter polyorder must be smaller than window_length")
+
+
+def _validate_cars_parameters(parameters: Mapping[str, Any]) -> None:
+    if not 0.0 < float(parameters["decay"]) <= 1.0:
+        raise ValueError("parameter decay must be in (0, 1]")
+
+
 def _cars(values: Any, parameters: Mapping[str, Any], seed: int) -> MethodExecutionResult:
     if not isinstance(values, SpectrumSet):
         raise TypeError("CARS analysis expects SpectrumSet")
@@ -476,10 +635,13 @@ def _cars(values: Any, parameters: Mapping[str, Any], seed: int) -> MethodExecut
             fold_model = PLSRegression(n_components=_safe_pls_components(len(current), len(train_fold), components), scale=True, max_iter=1000)
             fold_model.fit(X_fit[train_fold][:, :], y_fit[train_fold])
             fold_predictions[valid_fold] = np.asarray(fold_model.predict(X_fit[valid_fold][:, :])).reshape(-1)
-        # Fit the coefficient model on the current features.  The fold model
-        # above deliberately evaluates the same reduced matrix for leakage-safe
-        # CARS ranking and RMSECV tracking.
-        model.fit(X_fit[:, current], y_fit)
+        # This coefficient ranking is fitted on the complete calibration set,
+        # while fold predictions evaluate the already-chosen reduced matrix.
+        # Therefore RMSECV is an internal selection heuristic, not an unbiased
+        # nested-CV estimate of the full CARS selection procedure.
+        ranking_count = min(len(fit), max(2, int(np.ceil(len(fit) * 0.8))))
+        ranking_rows = np.sort(rng.choice(len(fit), size=ranking_count, replace=False))
+        model.fit(X_fit[ranking_rows][:, current], y_fit[ranking_rows])
         coefficients = np.abs(np.asarray(model.coef_).reshape(-1))
         rmsecv = float(np.sqrt(mean_squared_error(y_fit, fold_predictions)))
         progression.append(rmsecv)
@@ -495,17 +657,25 @@ def _cars(values: Any, parameters: Mapping[str, Any], seed: int) -> MethodExecut
         states.append(IntermediateState(
             f"cars_iteration_{iteration + 1}", "feature_selection", "remove_features",
             {"retained_indices": retained.copy(), "coefficients": coefficients.copy()},
-            {"iteration": iteration + 1, "rmsecv": rmsecv, "feature_count": len(retained)},
+            {
+                "iteration": iteration + 1,
+                "rmsecv": rmsecv,
+                "feature_count": len(retained),
+                "ranking_fit_indices": fit[ranking_rows].tolist(),
+            },
         ))
         current = retained
         if len(current) <= min_features:
             break
-        # A deterministic tie-breaker keeps future animation keyframes stable.
-        rng.random(1)
     analysis = FeatureAnalysisResult(
         "cars", values, values.feature_names, selected_indices=best_indices,
         statistics={"rmsecv_progression": progression, "best_rmsecv": best_rmse},
-        metadata={"fit_indices": fit.tolist(), "iterations": len(states), "min_features": min_features},
+        metadata={
+            "fit_indices": fit.tolist(),
+            "iterations": len(states),
+            "min_features": min_features,
+            "rmsecv_semantics": "internal_selection_heuristic_not_nested_cv",
+        },
     )
     return MethodExecutionResult(
         analysis,
@@ -547,14 +717,13 @@ def _plsr(values: Any, parameters: Mapping[str, Any], seed: int) -> MethodExecut
     if values.y is None:
         raise ValueError("PLSR requires a target y")
     fit = _fit_indices(parameters, values.X.shape[0])
-    validation = np.asarray(parameters.get("validation_indices", np.setdiff1d(np.arange(len(values.sample_ids)), fit)), dtype=int)
-    if len(validation) == 0:
-        validation = fit.copy()
+    validation = _validation_indices(parameters, len(values.sample_ids), fit)
     components = _safe_pls_components(values.X.shape[1], len(fit), int(parameters.get("n_components", 5)))
     model = PLSRegression(n_components=components, scale=True, max_iter=1000)
     model.fit(values.X[fit], values.y[fit])
     prediction = np.asarray(model.predict(values.X)).reshape(-1)
-    split = np.asarray(["calibration"] * len(values.sample_ids), dtype=object)
+    split = np.asarray(["unused"] * len(values.sample_ids), dtype=object)
+    split[fit] = "calibration"
     split[validation] = "validation"
     residual = prediction - values.y
     validation_prediction = prediction[validation]
@@ -595,6 +764,21 @@ def _plsr(values: Any, parameters: Mapping[str, Any], seed: int) -> MethodExecut
     )
 
 
+def evaluate_predictions(predictions: PredictionSet, feature_count: int, cv_rmse: float | None = None) -> EvaluationResult:
+    if len(predictions.sample_ids) == 0:
+        raise ValueError("cannot evaluate an empty PredictionSet")
+    return EvaluationResult(
+        rmse=float(np.sqrt(mean_squared_error(predictions.y_true, predictions.y_pred))),
+        mae=float(mean_absolute_error(predictions.y_true, predictions.y_pred)),
+        r2=float(r2_score(predictions.y_true, predictions.y_pred)) if len(predictions.sample_ids) > 1 else 0.0,
+        sample_count=len(predictions.sample_ids),
+        feature_count=int(feature_count),
+        cv_rmse=cv_rmse,
+        bias=float(np.mean(predictions.y_pred - predictions.y_true)),
+        metadata={"split": predictions.metadata.get("view_split", "all")},
+    )
+
+
 def _inspect(values: Any, parameters: Mapping[str, Any], seed: int) -> MethodExecutionResult:
     if not isinstance(values, SpectrumSet):
         raise TypeError("Data inspection expects SpectrumSet")
@@ -615,13 +799,17 @@ def _inspect(values: Any, parameters: Mapping[str, Any], seed: int) -> MethodExe
 def _summarize_results(values: Any, parameters: Mapping[str, Any], seed: int) -> MethodExecutionResult:
     if not isinstance(values, ModelResult):
         raise TypeError("Results summary expects ModelResult")
+    validation = values.predictions.validation_view()
+    summary = evaluate_predictions(validation, values.evaluation.feature_count, values.evaluation.cv_rmse)
+    summary.metadata.update(values.evaluation.metadata)
+    summary.metadata["split"] = "validation"
     return MethodExecutionResult(
         values,
-        metrics=values.evaluation.to_dict(),
+        metrics=summary.to_dict(),
         intermediate_states=[IntermediateState(
             "experiment_summary", "results", "show_residual",
-            {"y_true": values.predictions.y_true.copy(), "y_pred": values.predictions.y_pred.copy(), "residuals": values.predictions.residuals.copy()},
-            values.evaluation.to_dict(),
+            {"y_true": validation.y_true.copy(), "y_pred": validation.y_pred.copy(), "residuals": validation.residuals.copy()},
+            {**summary.to_dict(), "default_prediction_view": "validation"},
         )],
     )
 
@@ -631,21 +819,67 @@ def build_default_registry() -> MethodRegistry:
     registry.register(Method("data.inspect", "Data Inspection", Stage.DATA_INSPECTION, DataKind.SPECTRUM_SET, DataKind.SPECTRUM_SET, {}, _inspect))
     registry.register(Method("raw", "Raw passthrough", Stage.PREPROCESSING, DataKind.SPECTRUM_SET, DataKind.SPECTRUM_SET, {}, _raw))
     registry.register(Method("snv", "SNV", Stage.PREPROCESSING, DataKind.SPECTRUM_SET, DataKind.SPECTRUM_SET, {}, _snv))
-    registry.register(Method("savgol", "Savitzky–Golay", Stage.PREPROCESSING, DataKind.SPECTRUM_SET, DataKind.SPECTRUM_SET, {"window_length": 9, "polyorder": 2}, _savgol))
-    registry.register(Method("pca", "PCA", Stage.FEATURE_ANALYSIS, DataKind.SPECTRUM_SET, DataKind.FEATURE_ANALYSIS, {"n_components": 3}, _pca))
-    registry.register(Method("cars", "CARS stability analysis", Stage.FEATURE_ANALYSIS, DataKind.SPECTRUM_SET, DataKind.FEATURE_ANALYSIS, {"iterations": 6, "min_features": 8, "decay": 0.72}, _cars))
-    registry.register(Method("cars.select", "CARS selected wavelengths", Stage.FEATURE_SELECTION, DataKind.FEATURE_ANALYSIS, DataKind.SELECTED_FEATURE_SET, {}, _cars_select))
-    registry.register(Method("plsr", "PLSR", Stage.MODELING, DataKind.SELECTED_FEATURE_SET, DataKind.MODEL_RESULT, {"n_components": 5}, _plsr))
+    registry.register(Method(
+        "savgol", "Savitzky–Golay", Stage.PREPROCESSING, DataKind.SPECTRUM_SET, DataKind.SPECTRUM_SET,
+        {"window_length": ParameterDefinition(9, int, 3), "polyorder": ParameterDefinition(2, int, 0)},
+        _savgol, parameter_validator=_validate_savgol_parameters,
+    ))
+    registry.register(Method(
+        "pca", "PCA", Stage.FEATURE_ANALYSIS, DataKind.SPECTRUM_SET, DataKind.FEATURE_ANALYSIS,
+        {"n_components": ParameterDefinition(3, int, 1)}, _pca,
+        runtime_parameters=("fit_indices",),
+    ))
+    registry.register(Method(
+        "cars", "CARS stability analysis", Stage.FEATURE_ANALYSIS, DataKind.SPECTRUM_SET, DataKind.FEATURE_ANALYSIS,
+        {
+            "iterations": ParameterDefinition(6, int, 1),
+            "min_features": ParameterDefinition(8, int, 1),
+            "decay": ParameterDefinition(0.72, (int, float)),
+            "pls_components": ParameterDefinition(5, int, 1),
+        },
+        _cars,
+        metadata={"metric_semantics": "internal_selection_heuristic_not_nested_cv"},
+        runtime_parameters=("fit_indices",), seed_sensitive=True,
+        parameter_validator=_validate_cars_parameters,
+    ))
+    registry.register(Method(
+        "cars.select", "CARS selected wavelengths", Stage.FEATURE_SELECTION, DataKind.FEATURE_ANALYSIS, DataKind.SELECTED_FEATURE_SET,
+        {}, _cars_select, metadata={"accepted_analysis_ids": ["cars"]},
+    ))
+    registry.register(Method(
+        "plsr", "PLSR", Stage.MODELING, DataKind.SELECTED_FEATURE_SET, DataKind.MODEL_RESULT,
+        {"n_components": ParameterDefinition(5, int, 1)}, _plsr,
+        runtime_parameters=("fit_indices", "validation_indices"), seed_sensitive=True,
+    ))
     registry.register(Method("results.summarize", "Experiment results summary", Stage.RESULTS, DataKind.MODEL_RESULT, DataKind.MODEL_RESULT, {}, _summarize_results))
     return registry
 
 
 @dataclass(frozen=True)
 class PipelineDefinition:
-    preprocessing: tuple[str, ...] = ("snv",)
-    feature_analysis: tuple[str, ...] = ("pca", "cars")
-    feature_selection: str = "cars.select"
-    modeling: tuple[str, ...] = ("plsr",)
+    preprocessing: tuple[MethodSpec, ...] = field(default_factory=lambda: (MethodSpec("snv"),))
+    feature_analysis: tuple[MethodSpec, ...] = field(default_factory=lambda: (MethodSpec("pca"), MethodSpec("cars")))
+    feature_selection: FeatureSelectionSpec = field(default_factory=FeatureSelectionSpec)
+    modeling: tuple[MethodSpec, ...] = field(default_factory=lambda: (MethodSpec("plsr"),))
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "preprocessing", tuple(_method_spec(item) for item in self.preprocessing))
+        object.__setattr__(self, "feature_analysis", tuple(_method_spec(item) for item in self.feature_analysis))
+        selection = self.feature_selection
+        if isinstance(selection, str):
+            selection = FeatureSelectionSpec(MethodSpec(selection), selection.rsplit(".", 1)[0])
+        elif isinstance(selection, Mapping):
+            selection = FeatureSelectionSpec.from_dict(selection)
+        elif not isinstance(selection, FeatureSelectionSpec):
+            raise TypeError("feature_selection must be FeatureSelectionSpec")
+        object.__setattr__(self, "feature_selection", selection)
+        object.__setattr__(self, "modeling", tuple(_method_spec(item) for item in self.modeling))
+
+    @staticmethod
+    def _validated_spec(spec: MethodSpec, registry: MethodRegistry) -> MethodSpec:
+        method = registry.get(spec.method_id)
+        resolved = method.resolve_parameters(spec.parameters, saved_resolved=spec.resolved_parameters)
+        return MethodSpec(spec.method_id, spec.parameters, resolved)
 
     def validate(self, registry: MethodRegistry) -> None:
         if not self.preprocessing:
@@ -653,68 +887,113 @@ class PipelineDefinition:
         if not self.feature_analysis:
             raise ValueError("pipeline requires at least one feature analysis method")
         previous = DataKind.SPECTRUM_SET
-        for method_id in self.preprocessing:
-            method = registry.get(method_id)
+        for spec in self.preprocessing:
+            method = registry.get(spec.method_id)
+            self._validated_spec(spec, registry)
             if method.stage is not Stage.PREPROCESSING or method.input_type is not previous or method.output_type is not DataKind.SPECTRUM_SET:
-                raise TypeError(f"incompatible preprocessing method: {method_id}")
+                raise TypeError(f"incompatible preprocessing method: {spec.method_id}")
             previous = method.output_type
-        for method_id in self.feature_analysis:
-            method = registry.get(method_id)
+        analysis_ids: set[str] = set()
+        for spec in self.feature_analysis:
+            method = registry.get(spec.method_id)
+            self._validated_spec(spec, registry)
             if method.stage is not Stage.FEATURE_ANALYSIS or method.input_type is not DataKind.SPECTRUM_SET:
-                raise TypeError(f"feature analysis must consume SpectrumSet: {method_id}")
-        selection = registry.get(self.feature_selection)
+                raise TypeError(f"feature analysis must consume SpectrumSet: {spec.method_id}")
+            if spec.method_id in analysis_ids:
+                raise ValueError(f"duplicate feature analysis id requires a future explicit invocation id: {spec.method_id}")
+            analysis_ids.add(spec.method_id)
+        selection_spec = self.feature_selection.method
+        selection = registry.get(selection_spec.method_id)
+        self._validated_spec(selection_spec, registry)
         if selection.stage is not Stage.FEATURE_SELECTION or selection.input_type is not DataKind.FEATURE_ANALYSIS:
-            raise TypeError(f"invalid feature selection method: {self.feature_selection}")
+            raise TypeError(f"invalid feature selection method: {selection_spec.method_id}")
+        if self.feature_selection.source_analysis_id not in analysis_ids:
+            raise ValueError(f"feature selection source is not defined: {self.feature_selection.source_analysis_id}")
+        accepted = selection.metadata.get("accepted_analysis_ids")
+        if accepted is not None and self.feature_selection.source_analysis_id not in accepted:
+            raise TypeError(
+                f"{selection_spec.method_id} cannot consume analysis {self.feature_selection.source_analysis_id}; "
+                f"accepted sources: {accepted}"
+            )
         if not self.modeling:
             raise ValueError("pipeline requires at least one modeling method")
-        for method_id in self.modeling:
-            method = registry.get(method_id)
+        for spec in self.modeling:
+            method = registry.get(spec.method_id)
+            self._validated_spec(spec, registry)
             if method.stage is not Stage.MODELING or method.input_type is not DataKind.SELECTED_FEATURE_SET:
-                raise TypeError(f"modeling method must consume SelectedFeatureSet: {method_id}")
+                raise TypeError(f"modeling method must consume SelectedFeatureSet: {spec.method_id}")
+
+    def resolved(self, registry: MethodRegistry) -> "PipelineDefinition":
+        self.validate(registry)
+        return PipelineDefinition(
+            tuple(self._validated_spec(spec, registry) for spec in self.preprocessing),
+            tuple(self._validated_spec(spec, registry) for spec in self.feature_analysis),
+            FeatureSelectionSpec(self._validated_spec(self.feature_selection.method, registry), self.feature_selection.source_analysis_id),
+            tuple(self._validated_spec(spec, registry) for spec in self.modeling),
+        )
 
     def to_dict(self) -> dict[str, Any]:
-        return _json_value({
-            "preprocessing": self.preprocessing,
-            "feature_analysis": self.feature_analysis,
-            "feature_selection": self.feature_selection,
-            "modeling": self.modeling,
-        })
+        return {
+            "preprocessing": [spec.to_dict() for spec in self.preprocessing],
+            "feature_analysis": [spec.to_dict() for spec in self.feature_analysis],
+            "feature_selection": self.feature_selection.to_dict(),
+            "modeling": [spec.to_dict() for spec in self.modeling],
+        }
+
+    @classmethod
+    def from_dict(cls, document: Mapping[str, Any]) -> "PipelineDefinition":
+        # Schema-v1 experiments stored plain method ids.  Keep them loadable,
+        # then resolve defaults explicitly when replayed.
+        preprocessing = tuple(_method_spec(item) for item in document["preprocessing"])
+        analyses = tuple(_method_spec(item) for item in document["feature_analysis"])
+        selection_document = document["feature_selection"]
+        if isinstance(selection_document, str):
+            selection = FeatureSelectionSpec(MethodSpec(selection_document), selection_document.rsplit(".", 1)[0])
+        else:
+            selection = FeatureSelectionSpec.from_dict(selection_document)
+        modeling = tuple(_method_spec(item) for item in document["modeling"])
+        return cls(preprocessing, analyses, selection, modeling)
 
 
 @dataclass
 class StageRun:
     stage: Stage
     stage_run_id: str
-    method_chain: list[str]
+    method_specs: list[MethodSpec]
     input_ref: str
     output_ref: str
-    parameters: dict[str, Any]
     output_kind: DataKind
     output: Any
     intermediate_states: list[IntermediateState]
     statistics: dict[str, Any]
     execution_metadata: dict[str, Any]
     random_seed: int
+    computational_fingerprint: str
     created_at: str = field(default_factory=_now)
     cache_hit: bool = False
 
     @property
+    def method_chain(self) -> list[str]:
+        return [spec.method_id for spec in self.method_specs]
+
+    @property
+    def parameters(self) -> list[dict[str, Any]]:
+        return [
+            {"method_id": spec.method_id, "resolved_parameters": copy.deepcopy(spec.resolved_parameters)}
+            for spec in self.method_specs
+        ]
+
+    @property
     def cache_key(self) -> str:
-        document = {
-            "stage": self.stage.value,
-            "method_chain": self.method_chain,
-            "input_ref": self.input_ref,
-            "parameters": self.parameters,
-            "seed": self.random_seed,
-        }
-        return hashlib.sha256(json.dumps(_json_value(document), sort_keys=True).encode()).hexdigest()
+        return self.computational_fingerprint
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "stage": self.stage.value,
             "stage_run_id": self.stage_run_id,
             "method_chain": self.method_chain,
+            "method_specs": [spec.to_dict() for spec in self.method_specs],
             "input_ref": self.input_ref,
             "output_ref": self.output_ref,
             "parameters": _json_value(self.parameters),
@@ -724,6 +1003,7 @@ class StageRun:
             "statistics": _json_value(self.statistics),
             "execution_metadata": _json_value(self.execution_metadata),
             "random_seed": self.random_seed,
+            "computational_fingerprint": self.computational_fingerprint,
             "created_at": self.created_at,
             "cache_hit": self.cache_hit,
         }
@@ -735,13 +1015,24 @@ class StageRun:
 
     @classmethod
     def from_dict(cls, document: Mapping[str, Any]) -> "StageRun":
+        if "method_specs" in document:
+            method_specs = [MethodSpec.from_dict(item) for item in document["method_specs"]]
+        else:
+            legacy_parameters = _from_json_value(document.get("parameters", {}))
+            method_specs = [MethodSpec(method_id, legacy_parameters, legacy_parameters) for method_id in document["method_chain"]]
+        fingerprint = str(
+            document.get("computational_fingerprint")
+            or document.get("execution_metadata", {}).get("cache_key")
+            or hashlib.sha256(json.dumps(_json_value(document), sort_keys=True).encode()).hexdigest()
+        )
         return cls(
-            Stage(document["stage"]), str(document["stage_run_id"]), list(document["method_chain"]),
-            str(document["input_ref"]), str(document["output_ref"]), _from_json_value(document["parameters"]),
+            Stage(document["stage"]), str(document["stage_run_id"]), method_specs,
+            str(document["input_ref"]), str(document["output_ref"]),
             DataKind(document["output_kind"]), _deserialize_output(document["output"]),
             [IntermediateState.from_dict(state) for state in document.get("intermediate_states", [])],
             _from_json_value(document.get("statistics", {})), _from_json_value(document.get("execution_metadata", {})),
-            int(document["random_seed"]), str(document.get("created_at", _now())), bool(document.get("cache_hit", False)),
+            int(document["random_seed"]), fingerprint,
+            str(document.get("created_at", _now())), bool(document.get("cache_hit", False)),
         )
 
     @classmethod
@@ -767,7 +1058,7 @@ class ExperimentRun:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "experiment_id": self.experiment_id,
             "dataset_id": self.dataset_id,
             "pipeline_definition": self.pipeline_definition.to_dict(),
@@ -792,10 +1083,8 @@ class ExperimentRun:
         metrics = None if metrics_document is None else EvaluationResult(**_from_json_value(metrics_document))
         return cls(
             str(document["experiment_id"]), str(document["dataset_id"]),
-            PipelineDefinition(
-                tuple(definition_document["preprocessing"]), tuple(definition_document["feature_analysis"]),
-                str(definition_document["feature_selection"]), tuple(definition_document["modeling"]),
-            ), int(document["random_seed"]), _from_json_value(document.get("configuration_snapshot", {})),
+            PipelineDefinition.from_dict(definition_document),
+            int(document["random_seed"]), _from_json_value(document.get("configuration_snapshot", {})),
             [StageRun.from_dict(item) for item in document.get("stage_runs", [])], metrics,
             document.get("final_model_id"), _from_json_value(document.get("artifacts", [])), str(document.get("created_at", _now())),
         )
@@ -840,6 +1129,14 @@ def _deserialize_output(document: Mapping[str, Any]) -> Any:
     raise ValueError(f"unknown workflow output kind: {kind}")
 
 
+def serialize_workflow_output(output: Any) -> dict[str, Any]:
+    return _serialize_output(output)
+
+
+def deserialize_workflow_output(document: Mapping[str, Any]) -> Any:
+    return _deserialize_output(document)
+
+
 class StageCache:
     """In-memory cache for stage switching; optional disk persistence is explicit."""
 
@@ -863,10 +1160,53 @@ class StageCache:
 
 def _fingerprint(value: Any) -> str:
     if isinstance(value, SpectrumSet):
-        document = {"X": value.X.tolist(), "wavelengths": value.wavelengths.tolist(), "sample_ids": value.sample_ids, "y": None if value.y is None else value.y.tolist()}
+        document = {
+            "kind": value.kind.value,
+            "X": _json_value(value.X),
+            "wavelengths": _json_value(value.wavelengths),
+            "sample_ids": value.sample_ids,
+            "y": _json_value(value.y),
+            "computational_metadata": _json_value(value.computational_metadata),
+        }
+    elif isinstance(value, LatentFeatureSet):
+        document = {
+            "kind": value.kind.value, "X": _json_value(value.X), "feature_names": value.feature_names,
+            "sample_ids": value.sample_ids, "y": _json_value(value.y), "loadings": _json_value(value.loadings),
+            "computational_metadata": _json_value({key: item for key, item in value.metadata.items() if key != "display"}),
+        }
+    elif isinstance(value, SelectedFeatureSet):
+        document = {
+            "kind": value.kind.value, "X": _json_value(value.X), "feature_names": value.feature_names,
+            "selected_indices": _json_value(value.selected_indices), "sample_ids": value.sample_ids,
+            "y": _json_value(value.y),
+            "computational_metadata": _json_value({key: item for key, item in value.metadata.items() if key != "display"}),
+        }
+    elif isinstance(value, FeatureAnalysisResult):
+        document = {
+            "kind": value.kind.value, "method_id": value.method_id, "source": _fingerprint(value.source),
+            "feature_names": value.feature_names, "selected_indices": _json_value(value.selected_indices),
+            "scores": _json_value(value.scores), "loadings": _json_value(value.loadings),
+            "statistics": _json_value(value.statistics),
+            "computational_metadata": _json_value({key: item for key, item in value.metadata.items() if key != "display"}),
+        }
+    elif isinstance(value, ModelResult):
+        document = _serialize_output(value)
+        document["model_metadata"] = _json_value({key: item for key, item in value.model_metadata.items() if key != "display"})
     else:
-        document = _serialize_output(value) if isinstance(value, (LatentFeatureSet, SelectedFeatureSet, FeatureAnalysisResult, ModelResult)) else _json_value(value)
-    return hashlib.sha256(json.dumps(document, sort_keys=True).encode()).hexdigest()[:16]
+        document = _json_value(value)
+    return hashlib.sha256(json.dumps(document, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def select_final_model_by_cv(model_results: Sequence[tuple[str, ModelResult]]) -> tuple[str, ModelResult]:
+    """Select only with calibration-internal CV; validation metrics are ignored."""
+    if not model_results:
+        raise ValueError("model selection requires at least one model result")
+    if len(model_results) == 1:
+        return model_results[0]
+    missing = [model_id for model_id, result in model_results if result.evaluation.cv_rmse is None]
+    if missing:
+        raise ValueError(f"multi-model selection requires calibration CV metrics: {missing}")
+    return min(model_results, key=lambda item: float(item[1].evaluation.cv_rmse))
 
 
 class PipelineEngine:
@@ -874,41 +1214,81 @@ class PipelineEngine:
         self.registry = registry or build_default_registry()
         self.cache = cache or StageCache()
 
-    def _execute_method(self, method_id: str, value: Any, parameters: Mapping[str, Any], seed: int, stage: Stage, input_ref: str) -> tuple[Any, MethodExecutionResult]:
-        method = self.registry.get(method_id)
+    def _execute_method(self, spec: MethodSpec, value: Any, seed: int, stage: Stage) -> tuple[Any, MethodExecutionResult]:
+        method = self.registry.get(spec.method_id)
         if method.stage is not stage:
-            raise TypeError(f"{method_id} belongs to stage {method.stage.value}, not {stage.value}")
+            raise TypeError(f"{spec.method_id} belongs to stage {method.stage.value}, not {stage.value}")
         actual_kind = getattr(value, "kind", None)
         if actual_kind is not method.input_type:
-            raise TypeError(f"{method_id} expects {method.input_type.value}, got {actual_kind}")
-        result = method.execute(value, parameters, seed)
+            raise TypeError(f"{spec.method_id} expects {method.input_type.value}, got {actual_kind}")
+        result = method.execute(value, spec.resolved_parameters, seed)
         actual_output_kind = getattr(result.output, "kind", None)
         if actual_output_kind is not method.output_type:
-            raise TypeError(f"{method_id} returned {actual_output_kind}, expected {method.output_type.value}")
+            raise TypeError(f"{spec.method_id} returned {actual_output_kind}, expected {method.output_type.value}")
         return result.output, result
 
-    def _stage_run(self, stage: Stage, method_chain: Sequence[str], value: Any, parameters: Mapping[str, Any], seed: int, input_ref: str, stage_run_id: str) -> tuple[Any, StageRun]:
-        key_document = {"input": _fingerprint(value), "stage": stage.value, "methods": list(method_chain), "parameters": _json_value(parameters), "seed": seed}
-        key = hashlib.sha256(json.dumps(key_document, sort_keys=True).encode()).hexdigest()
+    def _stage_run(
+        self,
+        stage: Stage,
+        method_specs: Sequence[str | MethodSpec | Mapping[str, Any]],
+        value: Any,
+        runtime_parameters: Mapping[str, Any],
+        seed: int,
+        input_ref: str,
+        stage_run_id: str,
+    ) -> tuple[Any, StageRun]:
+        resolved_specs: list[MethodSpec] = []
+        seed_sensitive = False
+        for item in method_specs:
+            spec = _method_spec(item)
+            method = self.registry.get(spec.method_id)
+            runtime = {key: item for key, item in runtime_parameters.items() if key in method.runtime_parameters}
+            resolved = method.resolve_parameters(spec.parameters, runtime, spec.resolved_parameters)
+            resolved_specs.append(MethodSpec(spec.method_id, spec.parameters, resolved))
+            seed_sensitive = seed_sensitive or method.seed_sensitive
+        input_fingerprint = _fingerprint(value)
+        key_document = {
+            "input": input_fingerprint,
+            "stage": stage.value,
+            "method_specs": [spec.to_dict() for spec in resolved_specs],
+            "seed": seed if seed_sensitive else None,
+        }
+        key = hashlib.sha256(json.dumps(_json_value(key_document), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
         cached = self.cache.get(key)
         if cached is not None:
+            cached.stage_run_id = stage_run_id
+            cached.input_ref = input_ref
+            cached.random_seed = seed
             return cached.output, cached
         current = value
         states: list[IntermediateState] = []
         metrics: dict[str, Any] = {}
         method_metadata: list[dict[str, Any]] = []
-        for method_id in method_chain:
-            current, result = self._execute_method(method_id, current, parameters, seed, stage, input_ref)
+        for spec in resolved_specs:
+            current, result = self._execute_method(spec, current, seed, stage)
             states.extend(result.intermediate_states)
-            metrics[method_id] = result.metrics
-            method_metadata.append({"method_id": method_id, "metadata": result.metadata})
-        stage_run = StageRun(stage, stage_run_id, list(method_chain), input_ref, _fingerprint(current), dict(parameters), getattr(current, "kind"), current, states, metrics, {"methods": method_metadata, "cache_key": key}, seed)
+            metrics[spec.method_id] = result.metrics
+            method_metadata.append({
+                "method_id": spec.method_id,
+                "resolved_parameters": copy.deepcopy(spec.resolved_parameters),
+                "metadata": result.metadata,
+            })
+        stage_run = StageRun(
+            stage, stage_run_id, resolved_specs, input_ref, _fingerprint(current),
+            getattr(current, "kind"), current, states, metrics,
+            {
+                "methods": method_metadata,
+                "cache_key": key,
+                "input_fingerprint": input_fingerprint,
+                "seed_sensitive": seed_sensitive,
+            },
+            seed, key,
+        )
         self.cache.put(stage_run)
         return current, stage_run
 
     def execute(self, spectrum: SpectrumSet, experiment_id: str, dataset_id: str, seed: int, definition: PipelineDefinition | None = None, output_dir: Path | None = None) -> ExperimentRun:
-        definition = definition or PipelineDefinition()
-        definition.validate(self.registry)
+        definition = (definition or PipelineDefinition()).resolved(self.registry)
         groups = spectrum.metadata.get("groups")
         if groups is not None and len(np.unique(groups)) >= 2:
             unique_groups = np.unique(groups)
@@ -923,27 +1303,38 @@ class PipelineEngine:
         fit_indices = np.setdiff1d(np.arange(len(spectrum.sample_ids)), validation_indices)
         experiment = ExperimentRun(
             experiment_id, dataset_id, definition, seed,
-            {"stage_order": [stage.value for stage in Stage], "fit_indices": fit_indices.tolist(), "validation_indices": validation_indices.tolist(), "target": spectrum.metadata.get("target_name")},
+            {
+                "stage_order": [stage.value for stage in Stage],
+                "fit_indices": fit_indices.tolist(),
+                "validation_indices": validation_indices.tolist(),
+                "target": spectrum.metadata.get("target_name"),
+                "model_selection_metric": "calibration_cv_rmse",
+                "final_evaluation_split": "validation",
+            },
         )
-        current, stage_run = self._stage_run(Stage.DATA_INSPECTION, ["data.inspect"], spectrum, {}, seed, "dataset:" + dataset_id, "data-inspection")
+        current, stage_run = self._stage_run(Stage.DATA_INSPECTION, [MethodSpec("data.inspect")], spectrum, {}, seed, "dataset:" + dataset_id, "data-inspection")
         experiment.add_stage_run(stage_run)
         current, stage_run = self._stage_run(Stage.PREPROCESSING, definition.preprocessing, current, {"fit_indices": fit_indices.tolist()}, seed, "stage:data-inspection", "preprocessing")
         experiment.add_stage_run(stage_run)
         analyses: dict[str, FeatureAnalysisResult] = {}
-        for method_id in definition.feature_analysis:
-            analysis_output, analysis_run = self._stage_run(Stage.FEATURE_ANALYSIS, [method_id], current, {"fit_indices": fit_indices.tolist()}, seed, "stage:preprocessing", f"feature-analysis-{method_id.replace('.', '-')}")
+        for spec in definition.feature_analysis:
+            analysis_output, analysis_run = self._stage_run(Stage.FEATURE_ANALYSIS, [spec], current, {"fit_indices": fit_indices.tolist()}, seed, "stage:preprocessing", f"feature-analysis-{spec.method_id.replace('.', '-')}")
             experiment.add_stage_run(analysis_run)
-            analyses[method_id] = analysis_output
-        selection_source = analyses.get("cars") or next(iter(analyses.values()))
-        selected, selection_run = self._stage_run(Stage.FEATURE_SELECTION, [definition.feature_selection], selection_source, {}, seed, f"stage:feature-analysis-{selection_source.method_id}", "feature-selection")
+            analyses[spec.method_id] = analysis_output
+        source_analysis_id = definition.feature_selection.source_analysis_id
+        selection_source = analyses[source_analysis_id]
+        selected, selection_run = self._stage_run(
+            Stage.FEATURE_SELECTION, [definition.feature_selection.method], selection_source, {}, seed,
+            f"stage:feature-analysis-{source_analysis_id}", "feature-selection",
+        )
         experiment.add_stage_run(selection_run)
         model_results: list[tuple[str, ModelResult]] = []
-        for method_id in definition.modeling:
-            model, model_run = self._stage_run(Stage.MODELING, [method_id], selected, {"fit_indices": fit_indices.tolist(), "validation_indices": validation_indices.tolist()}, seed, "stage:feature-selection", f"modeling-{method_id.replace('.', '-')}")
+        for index, spec in enumerate(definition.modeling, start=1):
+            model, model_run = self._stage_run(Stage.MODELING, [spec], selected, {"fit_indices": fit_indices.tolist(), "validation_indices": validation_indices.tolist()}, seed, "stage:feature-selection", f"modeling-{index}-{spec.method_id.replace('.', '-')}")
             experiment.add_stage_run(model_run)
-            model_results.append((method_id, model))
+            model_results.append((spec.method_id, model))
         if model_results:
-            final_id, final_model = min(model_results, key=lambda item: item[1].evaluation.rmse)
+            final_id, final_model = select_final_model_by_cv(model_results)
             experiment.final_model_id = final_id
             experiment.final_metrics = final_model.evaluation
             _, results_run = self._stage_run(
@@ -963,6 +1354,16 @@ class PipelineEngine:
             for stage_run in experiment.stage_runs:
                 stage_run.save(output_dir / "stages" / f"{stage_run.stage_run_id}.json")
         return experiment
+
+    def replay(self, experiment: ExperimentRun, spectrum: SpectrumSet, output_dir: Path | None = None) -> ExperimentRun:
+        return self.execute(
+            spectrum,
+            experiment.experiment_id,
+            experiment.dataset_id,
+            experiment.random_seed,
+            experiment.pipeline_definition,
+            output_dir,
+        )
 
 
 def spectrum_from_run(run_dir: Path) -> SpectrumSet:
@@ -1031,5 +1432,10 @@ def run_preprocessing_comparison(
 
 
 __all__ = [
-    "DataKind", "EvaluationResult", "ExperimentRun", "FeatureAnalysisResult", "IntermediateState", "LatentFeatureSet", "Method", "MethodRegistry", "ModelResult", "PipelineDefinition", "PipelineEngine", "PredictionSet", "SelectedFeatureSet", "SpectrumSet", "Stage", "StageCache", "StageRun", "build_default_registry", "run_preprocessing_comparison", "run_workflow_from_run", "spectrum_from_run",
+    "DataKind", "EvaluationResult", "ExperimentRun", "FeatureAnalysisResult", "FeatureSelectionSpec",
+    "IntermediateState", "LatentFeatureSet", "Method", "MethodRegistry", "MethodSpec", "ModelResult",
+    "ParameterDefinition", "PipelineDefinition", "PipelineEngine", "PredictionSet", "SelectedFeatureSet",
+    "SpectrumSet", "Stage", "StageCache", "StageRun", "build_default_registry",
+    "deserialize_workflow_output", "evaluate_predictions", "run_preprocessing_comparison",
+    "run_workflow_from_run", "select_final_model_by_cv", "serialize_workflow_output", "spectrum_from_run",
 ]
