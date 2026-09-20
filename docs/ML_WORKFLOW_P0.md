@@ -21,7 +21,7 @@ SpectrumSet
   -> structured intermediate states / renderer / UI
 ```
 
-`Method` 描述单一算法，带有 `stage`、`input_type`、`output_type`、参数 schema 和执行函数。每次调用由 `MethodSpec(method_id, parameters, resolved_parameters)` 表达：默认参数和显式覆盖在执行前合并、校验并固化。`FeatureSelectionSpec` 明确声明 selection method 及其 `source_analysis_id`，不再根据 `cars` 字符串或字典顺序猜测来源。`MethodRegistry` 负责注册和解析算法，`PipelineDefinition.validate()` 根据类型和阶段校验组合。
+`Method` 描述单一算法，带有 `stage`、`input_type`、`output_type`、参数 schema 和执行函数。每次调用由 `MethodSpec(method_id, parameters, resolved_parameters, invocation_id)` 表达：默认参数和显式覆盖在执行前合并、校验并固化；`invocation_id`（`node_id` 属性为同义别名）唯一标识一次调用，因此同一算法的不同参数组合可以并存。`FeatureSelectionSpec` 通过 `source_invocation_id` 声明准确的 analysis → selection 边，不再根据 `cars` 方法名或字典顺序猜测来源。`MethodRegistry` 负责注册和解析算法，`PipelineDefinition.validate()` 根据类型、阶段和节点 ID 唯一性校验组合。
 
 `StageRun` 保存一次阶段执行的输入引用、输出引用、逐方法 resolved parameters、随机种子、计算指纹、缓存状态、统计量、执行元数据和 `IntermediateState`。它可以独立保存为 JSON，并从 JSON 重载；重载后的计算指纹仍可直接用于缓存身份匹配。
 
@@ -57,7 +57,9 @@ SNV
 Savitzky–Golay -> SNV
 ```
 
-这些路线共享同一个 `SpectrumSet`、sample id 和 wavelength axis，并由 `StageCache` 缓存；切换时不重复计算。
+比较入口同时接受 method-id 字符串、`MethodSpec` 和字典形式的参数化节点，例如 SG(5) 与 SG(15)。这些路线共享同一个 `SpectrumSet`、sample id 和 wavelength axis，并由 `StageCache` 缓存；切换时不重复计算。节点 ID 不进入计算缓存键，但缓存命中返回的 `StageRun` 会更新为当前调用节点的 ID、统计键和执行元数据。
+
+Modeling、`final_model_id` 及 Results 的 `input_ref` 均使用模型 invocation ID。每个 `stage:*` 引用都对应实验中真实存在的 `StageRun.stage_run_id`，因此 PLSR(2) 与 PLSR(5) 等同算法候选可以被无歧义地选择和回溯。
 
 分组数据会在 PCA、CARS 和 PLSR 拟合前先划分 calibration/validation。PCA、CARS 只在 calibration rows 上拟合，PLSR 只在 calibration rows 上训练，validation rows 只用于最终评估。多模型选择只允许读取 calibration 内部 CV RMSE；最终 validation 指标不参与模型选择。随机种子和 split 索引写入 ExperimentRun。
 

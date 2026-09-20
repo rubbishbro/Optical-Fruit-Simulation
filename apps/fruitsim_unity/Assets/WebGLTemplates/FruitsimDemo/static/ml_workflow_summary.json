@@ -7,6 +7,7 @@
     "preprocessing": [
       {
         "method_id": "snv",
+        "invocation_id": "snv",
         "parameters": {},
         "resolved_parameters": {}
       }
@@ -14,6 +15,7 @@
     "feature_analysis": [
       {
         "method_id": "pca",
+        "invocation_id": "pca",
         "parameters": {},
         "resolved_parameters": {
           "n_components": 3
@@ -21,6 +23,7 @@
       },
       {
         "method_id": "cars",
+        "invocation_id": "cars",
         "parameters": {},
         "resolved_parameters": {
           "iterations": 6,
@@ -33,14 +36,16 @@
     "feature_selection": {
       "method": {
         "method_id": "cars.select",
+        "invocation_id": "cars.select",
         "parameters": {},
         "resolved_parameters": {}
       },
-      "source_analysis_id": "cars"
+      "source_invocation_id": "cars"
     },
     "modeling": [
       {
         "method_id": "plsr",
+        "invocation_id": "plsr",
         "parameters": {},
         "resolved_parameters": {
           "n_components": 5
@@ -61,6 +66,7 @@
       "parameters": [
         {
           "method_id": "data.inspect",
+          "invocation_id": "data.inspect",
           "resolved_parameters": {}
         }
       ],
@@ -89,6 +95,7 @@
       "parameters": [
         {
           "method_id": "snv",
+          "invocation_id": "snv",
           "resolved_parameters": {}
         }
       ],
@@ -113,6 +120,7 @@
       "parameters": [
         {
           "method_id": "pca",
+          "invocation_id": "pca",
           "resolved_parameters": {
             "n_components": 3,
             "fit_indices": [
@@ -165,6 +173,7 @@
       "parameters": [
         {
           "method_id": "cars",
+          "invocation_id": "cars",
           "resolved_parameters": {
             "iterations": 6,
             "min_features": 8,
@@ -209,7 +218,7 @@
       "cache_hit": false
     },
     {
-      "stage_run_id": "feature-selection",
+      "stage_run_id": "feature-selection-cars.select",
       "stage": "feature_selection",
       "methods": [
         "cars.select"
@@ -220,6 +229,7 @@
       "parameters": [
         {
           "method_id": "cars.select",
+          "invocation_id": "cars.select",
           "resolved_parameters": {}
         }
       ],
@@ -233,17 +243,18 @@
       "cache_hit": false
     },
     {
-      "stage_run_id": "modeling-1-plsr",
+      "stage_run_id": "modeling-plsr",
       "stage": "modeling",
       "methods": [
         "plsr"
       ],
-      "input_ref": "stage:feature-selection",
+      "input_ref": "stage:feature-selection-cars.select",
       "output_ref": "8110c7dc3030ac43537a3e5d3205ef4b2ae1543ab671d4c92cdf0ddf26bd954e",
       "output_kind": "model_result",
       "parameters": [
         {
           "method_id": "plsr",
+          "invocation_id": "plsr",
           "resolved_parameters": {
             "n_components": 5,
             "fit_indices": [
@@ -315,6 +326,7 @@
       "parameters": [
         {
           "method_id": "results.summarize",
+          "invocation_id": "results.summarize",
           "resolved_parameters": {}
         }
       ],

@@ -93,12 +93,27 @@ namespace Fruitsim.UnityOptics
             {
                 Material material = new Material(shader)
                 {
-                    name = $"GeneratedAppleMaterial_{visual.roughness:0.###}",
+                    name = $"GeneratedAppleMaterial_{owner.sampleId.Substring(owner.sampleId.Length - 12)}",
                     color = visual.color,
                 };
                 material.SetColor("_Color", visual.color);
+                material.SetFloat("_Roughness", Mathf.Clamp01(visual.roughness));
+                material.SetFloat("_SpotDensity", Mathf.Clamp01(visual.spotDensity));
+                material.SetFloat("_NormalStrength", Mathf.Clamp01(visual.normalStrength));
+                material.SetFloat("_SpotSeed", StableMaterialSeed(owner.sampleId));
                 renderer.sharedMaterial = material;
                 owner.TrackOwnedRuntimeMaterial(material);
+            }
+        }
+
+        private static float StableMaterialSeed(string sampleId)
+        {
+            unchecked
+            {
+                uint hash = 2166136261u;
+                for (int index = 0; index < sampleId.Length; index++)
+                    hash = (hash ^ sampleId[index]) * 16777619u;
+                return (hash & 0x00ffffffu) / 16777215.0f;
             }
         }
 

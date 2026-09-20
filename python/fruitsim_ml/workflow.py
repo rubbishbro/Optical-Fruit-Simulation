@@ -11,6 +11,7 @@ import csv
 import copy
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -364,15 +365,37 @@ class MethodSpec:
     method_id: str
     parameters: dict[str, Any] = field(default_factory=dict)
     resolved_parameters: dict[str, Any] = field(default_factory=dict)
+    invocation_id: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "method_id", str(self.method_id))
         object.__setattr__(self, "parameters", copy.deepcopy(dict(self.parameters)))
         object.__setattr__(self, "resolved_parameters", copy.deepcopy(dict(self.resolved_parameters)))
+        invocation_id = self.method_id if self.invocation_id is None else str(self.invocation_id)
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", invocation_id):
+            raise ValueError(
+                "invocation_id must start with an alphanumeric character and contain only "
+                "letters, numbers, '.', '_' or '-'"
+            )
+        object.__setattr__(self, "invocation_id", invocation_id)
+
+    @property
+    def node_id(self) -> str:
+        """Graph/UI alias for the stable invocation identity."""
+        return str(self.invocation_id)
+
+    def computational_dict(self) -> dict[str, Any]:
+        """Return fields that affect output, excluding graph-node identity."""
+        return {
+            "method_id": self.method_id,
+            "parameters": _json_value(self.parameters),
+            "resolved_parameters": _json_value(self.resolved_parameters),
+        }
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "method_id": self.method_id,
+            "invocation_id": self.invocation_id,
             "parameters": _json_value(self.parameters),
             "resolved_parameters": _json_value(self.resolved_parameters),
         }
@@ -383,6 +406,7 @@ class MethodSpec:
             str(document["method_id"]),
             _from_json_value(document.get("parameters", {})),
             _from_json_value(document.get("resolved_parameters", {})),
+            document.get("invocation_id", document.get("node_id")),
         )
 
 
@@ -399,18 +423,26 @@ def _method_spec(value: str | MethodSpec | Mapping[str, Any]) -> MethodSpec:
 @dataclass(frozen=True)
 class FeatureSelectionSpec:
     method: MethodSpec = field(default_factory=lambda: MethodSpec("cars.select"))
-    source_analysis_id: str = "cars"
+    source_invocation_id: str = "cars"
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "method", _method_spec(self.method))
-        object.__setattr__(self, "source_analysis_id", str(self.source_analysis_id))
+        object.__setattr__(self, "source_invocation_id", str(self.source_invocation_id))
+
+    @property
+    def source_analysis_id(self) -> str:
+        """Backward-compatible alias; the value now identifies an invocation."""
+        return self.source_invocation_id
 
     def to_dict(self) -> dict[str, Any]:
-        return {"method": self.method.to_dict(), "source_analysis_id": self.source_analysis_id}
+        return {"method": self.method.to_dict(), "source_invocation_id": self.source_invocation_id}
 
     @classmethod
     def from_dict(cls, document: Mapping[str, Any]) -> "FeatureSelectionSpec":
-        return cls(_method_spec(document["method"]), str(document["source_analysis_id"]))
+        source = document.get("source_invocation_id", document.get("source_analysis_id"))
+        if source is None:
+            raise ValueError("feature selection requires source_invocation_id")
+        return cls(_method_spec(document["method"]), str(source))
 
 
 @dataclass
@@ -879,7 +911,7 @@ class PipelineDefinition:
     def _validated_spec(spec: MethodSpec, registry: MethodRegistry) -> MethodSpec:
         method = registry.get(spec.method_id)
         resolved = method.resolve_parameters(spec.parameters, saved_resolved=spec.resolved_parameters)
-        return MethodSpec(spec.method_id, spec.parameters, resolved)
+        return MethodSpec(spec.method_id, spec.parameters, resolved, spec.invocation_id)
 
     def validate(self, registry: MethodRegistry) -> None:
         if not self.preprocessing:
@@ -893,26 +925,38 @@ class PipelineDefinition:
             if method.stage is not Stage.PREPROCESSING or method.input_type is not previous or method.output_type is not DataKind.SPECTRUM_SET:
                 raise TypeError(f"incompatible preprocessing method: {spec.method_id}")
             previous = method.output_type
-        analysis_ids: set[str] = set()
+        invocation_specs = (
+            *self.preprocessing,
+            *self.feature_analysis,
+            self.feature_selection.method,
+            *self.modeling,
+        )
+        invocation_ids = [str(spec.invocation_id) for spec in invocation_specs]
+        duplicates = sorted({item for item in invocation_ids if invocation_ids.count(item) > 1})
+        if duplicates:
+            raise ValueError(f"duplicate invocation_id values: {duplicates}")
+
+        analyses_by_invocation: dict[str, MethodSpec] = {}
         for spec in self.feature_analysis:
             method = registry.get(spec.method_id)
             self._validated_spec(spec, registry)
             if method.stage is not Stage.FEATURE_ANALYSIS or method.input_type is not DataKind.SPECTRUM_SET:
                 raise TypeError(f"feature analysis must consume SpectrumSet: {spec.method_id}")
-            if spec.method_id in analysis_ids:
-                raise ValueError(f"duplicate feature analysis id requires a future explicit invocation id: {spec.method_id}")
-            analysis_ids.add(spec.method_id)
+            analyses_by_invocation[str(spec.invocation_id)] = spec
         selection_spec = self.feature_selection.method
         selection = registry.get(selection_spec.method_id)
         self._validated_spec(selection_spec, registry)
         if selection.stage is not Stage.FEATURE_SELECTION or selection.input_type is not DataKind.FEATURE_ANALYSIS:
             raise TypeError(f"invalid feature selection method: {selection_spec.method_id}")
-        if self.feature_selection.source_analysis_id not in analysis_ids:
-            raise ValueError(f"feature selection source is not defined: {self.feature_selection.source_analysis_id}")
+        source_invocation_id = self.feature_selection.source_invocation_id
+        if source_invocation_id not in analyses_by_invocation:
+            raise ValueError(f"feature selection source invocation is not defined: {source_invocation_id}")
+        source_method_id = analyses_by_invocation[source_invocation_id].method_id
         accepted = selection.metadata.get("accepted_analysis_ids")
-        if accepted is not None and self.feature_selection.source_analysis_id not in accepted:
+        if accepted is not None and source_method_id not in accepted:
             raise TypeError(
-                f"{selection_spec.method_id} cannot consume analysis {self.feature_selection.source_analysis_id}; "
+                f"{selection_spec.method_id} cannot consume analysis method {source_method_id} "
+                f"from invocation {source_invocation_id}; "
                 f"accepted sources: {accepted}"
             )
         if not self.modeling:
@@ -928,7 +972,7 @@ class PipelineDefinition:
         return PipelineDefinition(
             tuple(self._validated_spec(spec, registry) for spec in self.preprocessing),
             tuple(self._validated_spec(spec, registry) for spec in self.feature_analysis),
-            FeatureSelectionSpec(self._validated_spec(self.feature_selection.method, registry), self.feature_selection.source_analysis_id),
+            FeatureSelectionSpec(self._validated_spec(self.feature_selection.method, registry), self.feature_selection.source_invocation_id),
             tuple(self._validated_spec(spec, registry) for spec in self.modeling),
         )
 
@@ -979,7 +1023,11 @@ class StageRun:
     @property
     def parameters(self) -> list[dict[str, Any]]:
         return [
-            {"method_id": spec.method_id, "resolved_parameters": copy.deepcopy(spec.resolved_parameters)}
+            {
+                "method_id": spec.method_id,
+                "invocation_id": spec.invocation_id,
+                "resolved_parameters": copy.deepcopy(spec.resolved_parameters),
+            }
             for spec in self.method_specs
         ]
 
@@ -989,7 +1037,7 @@ class StageRun:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": 2,
+            "schema_version": 3,
             "stage": self.stage.value,
             "stage_run_id": self.stage_run_id,
             "method_chain": self.method_chain,
@@ -1058,7 +1106,7 @@ class ExperimentRun:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema_version": 2,
+            "schema_version": 3,
             "experiment_id": self.experiment_id,
             "dataset_id": self.dataset_id,
             "pipeline_definition": self.pipeline_definition.to_dict(),
@@ -1244,21 +1292,39 @@ class PipelineEngine:
             method = self.registry.get(spec.method_id)
             runtime = {key: item for key, item in runtime_parameters.items() if key in method.runtime_parameters}
             resolved = method.resolve_parameters(spec.parameters, runtime, spec.resolved_parameters)
-            resolved_specs.append(MethodSpec(spec.method_id, spec.parameters, resolved))
+            resolved_specs.append(MethodSpec(spec.method_id, spec.parameters, resolved, spec.invocation_id))
             seed_sensitive = seed_sensitive or method.seed_sensitive
         input_fingerprint = _fingerprint(value)
         key_document = {
             "input": input_fingerprint,
             "stage": stage.value,
-            "method_specs": [spec.to_dict() for spec in resolved_specs],
+            "method_specs": [spec.computational_dict() for spec in resolved_specs],
             "seed": seed if seed_sensitive else None,
         }
         key = hashlib.sha256(json.dumps(_json_value(key_document), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
         cached = self.cache.get(key)
         if cached is not None:
+            previous_specs = cached.method_specs
+            remapped_statistics: dict[str, Any] = {}
+            for previous, current_spec in zip(previous_specs, resolved_specs):
+                previous_key = str(previous.invocation_id)
+                fallback_key = previous.method_id
+                if previous_key in cached.statistics:
+                    remapped_statistics[str(current_spec.invocation_id)] = cached.statistics[previous_key]
+                elif fallback_key in cached.statistics:
+                    remapped_statistics[str(current_spec.invocation_id)] = cached.statistics[fallback_key]
+            if len(remapped_statistics) == len(resolved_specs):
+                cached.statistics = remapped_statistics
+            methods_metadata = cached.execution_metadata.get("methods")
+            if isinstance(methods_metadata, list):
+                for metadata, spec in zip(methods_metadata, resolved_specs):
+                    if isinstance(metadata, dict):
+                        metadata["method_id"] = spec.method_id
+                        metadata["invocation_id"] = spec.invocation_id
             cached.stage_run_id = stage_run_id
             cached.input_ref = input_ref
             cached.random_seed = seed
+            cached.method_specs = copy.deepcopy(resolved_specs)
             return cached.output, cached
         current = value
         states: list[IntermediateState] = []
@@ -1267,9 +1333,10 @@ class PipelineEngine:
         for spec in resolved_specs:
             current, result = self._execute_method(spec, current, seed, stage)
             states.extend(result.intermediate_states)
-            metrics[spec.method_id] = result.metrics
+            metrics[str(spec.invocation_id)] = result.metrics
             method_metadata.append({
                 "method_id": spec.method_id,
+                "invocation_id": spec.invocation_id,
                 "resolved_parameters": copy.deepcopy(spec.resolved_parameters),
                 "metadata": result.metadata,
             })
@@ -1314,25 +1381,38 @@ class PipelineEngine:
         )
         current, stage_run = self._stage_run(Stage.DATA_INSPECTION, [MethodSpec("data.inspect")], spectrum, {}, seed, "dataset:" + dataset_id, "data-inspection")
         experiment.add_stage_run(stage_run)
-        current, stage_run = self._stage_run(Stage.PREPROCESSING, definition.preprocessing, current, {"fit_indices": fit_indices.tolist()}, seed, "stage:data-inspection", "preprocessing")
+        current, stage_run = self._stage_run(Stage.PREPROCESSING, definition.preprocessing, current, {"fit_indices": fit_indices.tolist()}, seed, f"stage:{stage_run.stage_run_id}", "preprocessing")
         experiment.add_stage_run(stage_run)
-        analyses: dict[str, FeatureAnalysisResult] = {}
+        preprocessing_run = stage_run
+        analyses: dict[str, tuple[FeatureAnalysisResult, StageRun]] = {}
         for spec in definition.feature_analysis:
-            analysis_output, analysis_run = self._stage_run(Stage.FEATURE_ANALYSIS, [spec], current, {"fit_indices": fit_indices.tolist()}, seed, "stage:preprocessing", f"feature-analysis-{spec.method_id.replace('.', '-')}")
+            invocation_id = str(spec.invocation_id)
+            analysis_output, analysis_run = self._stage_run(
+                Stage.FEATURE_ANALYSIS, [spec], current, {"fit_indices": fit_indices.tolist()}, seed,
+                f"stage:{preprocessing_run.stage_run_id}", f"feature-analysis-{invocation_id}",
+            )
             experiment.add_stage_run(analysis_run)
-            analyses[spec.method_id] = analysis_output
-        source_analysis_id = definition.feature_selection.source_analysis_id
-        selection_source = analyses[source_analysis_id]
+            analyses[invocation_id] = (analysis_output, analysis_run)
+        source_invocation_id = definition.feature_selection.source_invocation_id
+        selection_source, source_analysis_run = analyses[source_invocation_id]
+        selection_invocation_id = str(definition.feature_selection.method.invocation_id)
         selected, selection_run = self._stage_run(
             Stage.FEATURE_SELECTION, [definition.feature_selection.method], selection_source, {}, seed,
-            f"stage:feature-analysis-{source_analysis_id}", "feature-selection",
+            f"stage:{source_analysis_run.stage_run_id}", f"feature-selection-{selection_invocation_id}",
         )
         experiment.add_stage_run(selection_run)
         model_results: list[tuple[str, ModelResult]] = []
-        for index, spec in enumerate(definition.modeling, start=1):
-            model, model_run = self._stage_run(Stage.MODELING, [spec], selected, {"fit_indices": fit_indices.tolist(), "validation_indices": validation_indices.tolist()}, seed, "stage:feature-selection", f"modeling-{index}-{spec.method_id.replace('.', '-')}")
+        model_runs: dict[str, StageRun] = {}
+        for spec in definition.modeling:
+            invocation_id = str(spec.invocation_id)
+            model, model_run = self._stage_run(
+                Stage.MODELING, [spec], selected,
+                {"fit_indices": fit_indices.tolist(), "validation_indices": validation_indices.tolist()}, seed,
+                f"stage:{selection_run.stage_run_id}", f"modeling-{invocation_id}",
+            )
             experiment.add_stage_run(model_run)
-            model_results.append((spec.method_id, model))
+            model_results.append((invocation_id, model))
+            model_runs[invocation_id] = model_run
         if model_results:
             final_id, final_model = select_final_model_by_cv(model_results)
             experiment.final_model_id = final_id
@@ -1343,7 +1423,7 @@ class PipelineEngine:
                 final_model,
                 {},
                 seed,
-                f"stage:modeling-{final_id.replace('.', '-')}",
+                f"stage:{model_runs[final_id].stage_run_id}",
                 "results",
             )
             experiment.add_stage_run(results_run)
@@ -1404,7 +1484,7 @@ def run_workflow_from_run(run_dir: Path, output_dir: Path, experiment_id: str | 
 
 def run_preprocessing_comparison(
     spectrum: SpectrumSet,
-    chains: Sequence[Sequence[str]],
+    chains: Sequence[Sequence[str | MethodSpec | Mapping[str, Any]]],
     seed: int = 20260920,
     cache: StageCache | None = None,
 ) -> list[StageRun]:
@@ -1414,13 +1494,17 @@ def run_preprocessing_comparison(
     for index, chain in enumerate(chains, start=1):
         if not chain:
             raise ValueError("each preprocessing comparison chain must be non-empty")
-        for method_id in chain:
-            method = engine.registry.get(method_id)
+        specs = tuple(_method_spec(item) for item in chain)
+        invocation_ids = [str(spec.invocation_id) for spec in specs]
+        if len(invocation_ids) != len(set(invocation_ids)):
+            raise ValueError(f"duplicate invocation_id within comparison chain: {invocation_ids}")
+        for spec in specs:
+            method = engine.registry.get(spec.method_id)
             if method.stage is not Stage.PREPROCESSING:
-                raise TypeError(f"comparison method is not preprocessing: {method_id}")
+                raise TypeError(f"comparison method is not preprocessing: {spec.method_id}")
         _, stage_run = engine._stage_run(
             Stage.PREPROCESSING,
-            tuple(chain),
+            specs,
             spectrum,
             {},
             seed,

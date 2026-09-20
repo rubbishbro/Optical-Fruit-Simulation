@@ -26,6 +26,8 @@ namespace Fruitsim.UnityOptics
         private static Transform CreateBlenderRig(IlluminationRigController controller, GameObject experimentRoot)
         {
             AppleGenerator generator = experimentRoot.AddComponent<AppleGenerator>();
+            FruitsimAppleGeneratorBridge bridge = experimentRoot.AddComponent<FruitsimAppleGeneratorBridge>();
+            bridge.Initialize(generator);
             AppleInstance generated = generator.GenerateApple(
                 20260920,
                 new AppleGeometryParameters(),
