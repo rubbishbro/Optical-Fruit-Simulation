@@ -9,6 +9,8 @@ FBX = ROOT / "apps/fruitsim_unity/Assets/Resources/FruitsimBlenderRig.fbx"
 BOOTSTRAP = ROOT / "apps/fruitsim_unity/Assets/Scripts/Optics/FruitsimOpticsBootstrap.cs"
 GENERATOR = ROOT / "apps/fruitsim_unity/Assets/Scripts/Optics/AppleGenerator.cs"
 MODELS = ROOT / "apps/fruitsim_unity/Assets/Scripts/Optics/AppleModels.cs"
+IDENTITY = ROOT / "apps/fruitsim_unity/Assets/Scripts/Optics/AppleRequestIdentity.cs"
+CORRECTNESS = ROOT / "apps/fruitsim_unity/Assets/Editor/AppleCorrectnessChecks.cs"
 EXPORTER = ROOT / "scripts/export_blender_ring_rig_to_unity.py"
 ORBIT = ROOT / "apps/fruitsim_unity/Assets/Scripts/Optics/OrbitCameraController.cs"
 
@@ -28,10 +30,15 @@ class BlenderUnityAssetTests(unittest.TestCase):
         source = BOOTSTRAP.read_text(encoding="utf-8")
         generator = GENERATOR.read_text(encoding="utf-8")
         models = MODELS.read_text(encoding="utf-8")
+        identity = IDENTITY.read_text(encoding="utf-8")
         self.assertIn("AppleGenerator", source)
         self.assertIn("GenerateApple(", source)
         self.assertIn("Resources.Load<GameObject>(resourcePath)", generator)
-        self.assertIn("sampleId = $\"unity-apple-{request.seed:D10}\"", generator)
+        self.assertIn("AppleRequestIdentity.CreateSampleId(snapshot)", generator)
+        self.assertIn("SHA256.Create()", identity)
+        self.assertIn("FloatBits", identity)
+        self.assertIn("AppleRequestIdentity.Snapshot(request)", generator)
+        self.assertIn("ReleaseOwnedRuntimeMaterials", generator)
         self.assertIn("ApplePhysicalProperties", models)
         self.assertIn("AppleVisualMaterial", models)
         self.assertNotIn("CreatePrimitive", source)
@@ -52,6 +59,21 @@ class BlenderUnityAssetTests(unittest.TestCase):
         self.assertIn("public void ResetView()", source)
         bootstrap = BOOTSTRAP.read_text(encoding="utf-8")
         self.assertIn('camera.gameObject.name = "FruitsimOrbitCamera"', bootstrap)
+
+    def test_unity_correctness_harness_covers_identity_snapshot_and_lifecycle(self) -> None:
+        source = CORRECTNESS.read_text(encoding="utf-8")
+        for contract in (
+            "same request must have stable id",
+            "geometry must affect id",
+            "physical parameters must affect id",
+            "visual parameters must affect id",
+            "pose is identity-relevant in P0",
+            "geometry must be a generation snapshot",
+            "destroy must release generator-owned materials",
+            "repeated generate/destroy must not grow material count",
+            "shared source must not be destroyed",
+        ):
+            self.assertIn(contract, source)
 
 
 if __name__ == "__main__":

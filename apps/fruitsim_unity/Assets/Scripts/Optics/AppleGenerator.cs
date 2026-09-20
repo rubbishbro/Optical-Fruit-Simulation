@@ -11,6 +11,8 @@ namespace Fruitsim.UnityOptics
         [SerializeField] private GameObject sourcePrefab;
         [SerializeField] private string resourcePath = "FruitsimBlenderRig";
 
+        public AppleGenerationCapabilities Capabilities { get; } = new AppleGenerationCapabilities();
+
         public AppleInstance GenerateApple(
             int seed,
             AppleGeometryParameters geometry,
@@ -31,12 +33,14 @@ namespace Fruitsim.UnityOptics
         public AppleInstance GenerateApple(AppleGenerationRequest request)
         {
             if (request == null) throw new System.ArgumentNullException(nameof(request));
+            AppleGenerationRequest snapshot = AppleRequestIdentity.Snapshot(request);
             GameObject prefab = sourcePrefab != null ? sourcePrefab : Resources.Load<GameObject>(resourcePath);
             if (prefab == null)
                 throw new MissingReferenceException($"Apple source prefab is missing: Resources/{resourcePath}");
 
             GameObject container = Instantiate(prefab, transform);
-            container.name = $"FruitsimApple_{request.seed:D10}";
+            string sampleId = AppleRequestIdentity.CreateSampleId(snapshot);
+            container.name = $"FruitsimApple_{sampleId.Substring(sampleId.Length - 12)}";
             Transform apple = FindChild(container.transform, "BlenderApple");
             if (apple == null)
             {
@@ -45,28 +49,33 @@ namespace Fruitsim.UnityOptics
             }
 
             apple.name = "GeneratedApple";
-            apple.localScale = Vector3.one * Mathf.Max(0.01f, request.geometry.scale);
-            apple.localPosition = request.pose.position;
-            apple.localRotation = Quaternion.Euler(request.pose.eulerAngles);
-            ApplyVisualMaterial(apple, request.visualMaterial);
+            apple.localScale = Vector3.one * Mathf.Max(0.01f, snapshot.geometry.scale);
+            apple.localPosition = snapshot.pose.position;
+            apple.localRotation = Quaternion.Euler(snapshot.pose.eulerAngles);
 
-            return new AppleInstance
+            AppleInstance instance = new AppleInstance
             {
-                sampleId = $"unity-apple-{request.seed:D10}",
-                seed = request.seed,
-                geometry = request.geometry,
-                visualMaterial = request.visualMaterial,
-                physical = request.physical,
-                pose = request.pose,
+                sampleId = sampleId,
+                seed = snapshot.seed,
+                geometry = snapshot.geometry,
+                visualMaterial = snapshot.visualMaterial,
+                physical = snapshot.physical,
+                pose = snapshot.pose,
                 unityObject = apple.gameObject,
                 containerObject = container,
             };
+            ApplyVisualMaterial(apple, snapshot.visualMaterial, instance);
+            return instance;
         }
 
         public void DestroyApple(AppleInstance instance)
         {
-            if (instance != null && instance.containerObject != null)
-                Destroy(instance.containerObject);
+            if (instance == null) return;
+            if (instance.containerObject != null) DestroyOwnedObject(instance.containerObject);
+            foreach (Material material in instance.ReleaseOwnedRuntimeMaterials())
+                if (material != null) DestroyOwnedObject(material);
+            instance.unityObject = null;
+            instance.containerObject = null;
         }
 
         private static Transform FindChild(Transform root, string name)
@@ -76,7 +85,7 @@ namespace Fruitsim.UnityOptics
             return null;
         }
 
-        private static void ApplyVisualMaterial(Transform apple, AppleVisualMaterial visual)
+        private static void ApplyVisualMaterial(Transform apple, AppleVisualMaterial visual, AppleInstance owner)
         {
             Shader shader = Resources.Load<Shader>("FruitsimSolid");
             if (shader == null) return;
@@ -89,7 +98,14 @@ namespace Fruitsim.UnityOptics
                 };
                 material.SetColor("_Color", visual.color);
                 renderer.sharedMaterial = material;
+                owner.TrackOwnedRuntimeMaterial(material);
             }
+        }
+
+        private static void DestroyOwnedObject(Object value)
+        {
+            if (Application.isPlaying) Destroy(value);
+            else DestroyImmediate(value);
         }
     }
 }

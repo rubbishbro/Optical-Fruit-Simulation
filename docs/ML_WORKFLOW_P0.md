@@ -21,9 +21,9 @@ SpectrumSet
   -> structured intermediate states / renderer / UI
 ```
 
-`Method` 描述单一算法，带有 `stage`、`input_type`、`output_type`、参数 schema 和执行函数。`MethodRegistry` 负责注册和解析算法，`PipelineDefinition.validate()` 根据类型和阶段校验组合，不允许把 PLSR 接到预处理阶段，也不允许把 Prediction/ModelResult 接到 PCA。
+`Method` 描述单一算法，带有 `stage`、`input_type`、`output_type`、参数 schema 和执行函数。每次调用由 `MethodSpec(method_id, parameters, resolved_parameters)` 表达：默认参数和显式覆盖在执行前合并、校验并固化。`FeatureSelectionSpec` 明确声明 selection method 及其 `source_analysis_id`，不再根据 `cars` 字符串或字典顺序猜测来源。`MethodRegistry` 负责注册和解析算法，`PipelineDefinition.validate()` 根据类型和阶段校验组合。
 
-`StageRun` 保存一次阶段执行的输入引用、输出引用、方法链、参数、随机种子、统计量、执行元数据和 `IntermediateState`。它可以独立保存为 JSON，并从 JSON 重载。
+`StageRun` 保存一次阶段执行的输入引用、输出引用、逐方法 resolved parameters、随机种子、计算指纹、缓存状态、统计量、执行元数据和 `IntermediateState`。它可以独立保存为 JSON，并从 JSON 重载；重载后的计算指纹仍可直接用于缓存身份匹配。
 
 `ExperimentRun` 保存完整 pipeline definition、dataset id、阶段列表、最终模型、最终指标、配置快照和 artifact 引用。它不是单纯的 RMSE 记录。
 
@@ -33,7 +33,7 @@ SpectrumSet
 - `LatentFeatureSet`：PCA 等潜变量矩阵、组件名、loadings。
 - `FeatureAnalysisResult`：PCA/CARS 分析结果、选中特征、统计量和原始输入引用。
 - `SelectedFeatureSet`：真正交给模型的矩阵、选中特征索引和波长名。
-- `PredictionSet`：sample id、真实值、预测值、残差、split 和 fold id。
+- `PredictionSet`：sample id、真实值、预测值、残差、split 和 fold id；提供 `calibration_view()` / `validation_view()`，Results 默认只读取 validation view。
 - `EvaluationResult`：RMSE、MAE、R²、CV RMSE、bias、样本数和特征数。
 
 ## 3. 已实现的固定 Stage Pipeline
@@ -59,7 +59,9 @@ Savitzky–Golay -> SNV
 
 这些路线共享同一个 `SpectrumSet`、sample id 和 wavelength axis，并由 `StageCache` 缓存；切换时不重复计算。
 
-分组数据会在 PCA、CARS 和 PLSR 拟合前先划分 calibration/validation。PCA、CARS 只在 calibration rows 上拟合，PLSR 只在 calibration rows 上训练，validation rows 只用于最终评估。随机种子和 split 索引写入 ExperimentRun。
+分组数据会在 PCA、CARS 和 PLSR 拟合前先划分 calibration/validation。PCA、CARS 只在 calibration rows 上拟合，PLSR 只在 calibration rows 上训练，validation rows 只用于最终评估。多模型选择只允许读取 calibration 内部 CV RMSE；最终 validation 指标不参与模型选择。随机种子和 split 索引写入 ExperimentRun。
+
+缓存计算指纹包含 X、y、波长、sample id、groups、target/source identity 和其余 computational metadata。约定 `metadata["display"]` 为 display-only metadata，不参与缓存键；这一行为有独立测试。
 
 ## 4. 已接入算法与中间状态
 
@@ -67,7 +69,7 @@ Savitzky–Golay -> SNV
 - SNV：保存 raw spectrum、sample mean、sample std、normalized spectrum。
 - Savitzky–Golay：保存 raw/smoothed spectrum、window 和 polyorder。
 - PCA：保存 centered matrix、scores、loadings、explained variance ratio。
-- CARS：保存每一轮 retained indices、absolute coefficients、RMSECV progression；后续动画可以直接使用 `remove_features` 事件。
+- CARS：保存每一轮 retained indices、absolute coefficients、RMSECV progression。当前 `best_rmsecv` 是 calibration 内部的 selection heuristic：变量排名使用 calibration 子样本，不是对完整 CARS 选择过程做 nested CV，因此不得解释为完全无偏的泛化误差。
 - CARS selection：保存最终 selected indices 和 selected feature names。
 - PLSR：保存 latent scores、coefficients、predictions、residuals 和评估指标。
 
@@ -107,9 +109,11 @@ AppleInstance instance = generator.GenerateApple(
     pose);
 ```
 
-`AppleInstance` 返回稳定的 `sampleId`、seed、参数快照、Unity object reference 和容器 object reference。当前 sample id 规则为 `unity-apple-{seed:D10}`，同一 seed 可重现同一单颗样本标识。
+`AppleInstance` 返回稳定的 `sampleId`、seed、参数快照、Unity object reference 和容器 object reference。sample id 由完整 generation request 的固定字段顺序、IEEE-754 float bit canonicalization 和 SHA-256 生成；seed、geometry、physical、visual 或 pose 任一 identity-relevant 参数改变都会改变 id。Pose 在 P0 中明确纳入 identity。
 
-`ApplePhysicalProperties` 与 `AppleVisualMaterial` 是独立对象。SSC、水分、吸收和散射参数只作为物理 metadata，不直接决定视觉材质；颜色、粗糙度、斑点密度和法线强度只属于视觉层。
+`ApplePhysicalProperties` 与 `AppleVisualMaterial` 是独立对象。所有 request 参数在生成时 deep-copy，调用方后续修改 request 不会改变 `AppleInstance`。生成器跟踪自己创建的 runtime materials，`DestroyApple` 只销毁这些 owned materials 和实例容器，不销毁共享 FBX/资源材质。
+
+P0 参数生效边界通过 `AppleGenerationCapabilities` 暴露：geometry 中只有 `scale` 生效；visual 中只有 `color` 生效；pose 的 position/eulerAngles 生效。`heightRatio`、`crownRatio`、`asymmetry`、`roughness`、`spotDensity`、`normalStrength` 和全部 physical fields 当前仅作为可追溯 metadata，文档不声称其已改变网格、Shader 或光学仿真。
 
 当前生成器复用已导入的 Blender rig，未重新制作视觉材质，也未提前扩展批量生成 UI。
 
@@ -137,15 +141,17 @@ experiment = ExperimentRun.load("results/ml_workflow_demo/experiment.json")
 
 ## 8. 测试结果
 
-- 新增工作流测试：4/4 通过。
-- 验证 StageRun 保存/重载、阶段类型校验、Raw/SNV/SG 比较缓存和 CARS 中间状态。
-- ImGui GUI 当前源码构建成功。
-- Unity WebGL 构建成功，新增 C# 脚本通过 Unity 脚本编译。
-- 浏览器前台确认 Unity READY、六阶段 ML 页面、CARS 中间状态、Results 指标和 Web 控制台无错误。
+- Python 完整套件：62 passed，0 failed，0 skipped。
+- C++ CTest：3/3 passed；ImGui GUI 干净构建成功。
+- Unity Editor correctness harness：19 passed，0 failed。
+- Unity WebGL 构建成功；Web shell/server tests：4/4 passed。
+- 两条不同参数的 E2E 均完成 save/reload、metrics/selected indices 一致和 cache 隔离。
+
+完整命令、指标、失败复现和 caveat 见 `docs/P0_CORRECTNESS_TEST_REPORT.md`。
 
 ## 9. 尚未解决的问题
 
-- 当前 CARS 是面向教学和架构验证的稳定实现，不是最终论文级参数寻优版本。
+- 当前 CARS 是面向教学和架构验证的实现，RMSECV 是 internal selection heuristic，不是论文级 nested-CV 泛化估计。
 - Web 静态图集仍是发布时打包的 source-backed bundle；新实验的动态图表尚未通过 Gateway 实时刷新。
 - ImGui 当前展示 StageRun 摘要，尚未绘制所有中间矩阵和 residual 图。
 - Unity `AppleInstance` 已与视觉场景连接，但 sample metadata 尚未通过 WebSocket 自动写入服务端 Run manifest。
