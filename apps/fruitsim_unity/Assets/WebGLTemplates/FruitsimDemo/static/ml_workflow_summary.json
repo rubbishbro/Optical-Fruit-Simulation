@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "experiment_id": "web_ml_workflow_demo",
   "dataset_id": "math_seed20260919",
   "data_boundary": "synthetic demonstration; inspect source manifest before scientific use",
@@ -249,7 +249,7 @@
         "plsr"
       ],
       "input_ref": "stage:feature-selection-cars.select",
-      "output_ref": "8110c7dc3030ac43537a3e5d3205ef4b2ae1543ab671d4c92cdf0ddf26bd954e",
+      "output_ref": "967faecca073078a17920e9975276eb64adf3320100249743e8e063b0bb1d8d8",
       "output_kind": "model_result",
       "parameters": [
         {
@@ -321,7 +321,7 @@
         "results.summarize"
       ],
       "input_ref": "stage:modeling-plsr",
-      "output_ref": "8110c7dc3030ac43537a3e5d3205ef4b2ae1543ab671d4c92cdf0ddf26bd954e",
+      "output_ref": "967faecca073078a17920e9975276eb64adf3320100249743e8e063b0bb1d8d8",
       "output_kind": "model_result",
       "parameters": [
         {

@@ -336,6 +336,38 @@ class WorkflowCorrectnessTests(unittest.TestCase):
         self.assertGreater(len(fitted_matrices), 3)
         self.assertTrue(all(float(np.max(matrix)) < 100_000.0 for matrix in fitted_matrices))
 
+    def test_plsr_scores_are_aligned_to_noncontiguous_sample_ids(self) -> None:
+        selected = SelectedFeatureSet(
+            self.spectrum.X[:, :8], self.spectrum.feature_names[:8], np.arange(8),
+            self.spectrum.sample_ids, self.spectrum.y, self.spectrum.metadata,
+        )
+        fit = list(range(0, len(selected.sample_ids), 2))
+        validation = list(range(1, len(selected.sample_ids), 2))
+        model, model_stage = PipelineEngine()._stage_run(
+            Stage.MODELING, [MethodSpec("plsr", {"n_components": 2})], selected,
+            {"fit_indices": fit, "validation_indices": validation}, 91, "selected", "plsr-aligned",
+        )
+        metadata = model.model_metadata
+        self.assertEqual(metadata["x_scores_all"].shape[0], len(selected.sample_ids))
+        self.assertEqual(tuple(metadata["x_score_sample_ids_all"]), selected.sample_ids)
+        self.assertEqual(tuple(metadata["calibration_sample_ids"]), tuple(selected.sample_ids[index] for index in fit))
+        self.assertTrue(np.allclose(metadata["x_scores_all"][fit], metadata["x_scores_calibration"]))
+        state = next(state for state in model_stage.intermediate_states if state.name == "plsr_fit")
+        self.assertEqual(tuple(state.values["scores_sample_ids"]), selected.sample_ids)
+
+    def test_cars_states_keep_current_indices_for_coefficient_identity(self) -> None:
+        _, cars_stage = PipelineEngine()._stage_run(
+            Stage.FEATURE_ANALYSIS,
+            [MethodSpec("cars", {"iterations": 3, "min_features": 5, "decay": 0.7, "pls_components": 2})],
+            self.spectrum, {"fit_indices": list(range(20))}, 92, "data", "cars-contract",
+        )
+        for state in cars_stage.intermediate_states:
+            current = np.asarray(state.arrays["current_indices"])
+            retained = np.asarray(state.arrays["retained_indices"])
+            coefficients = np.asarray(state.arrays["coefficients"])
+            self.assertEqual(len(current), len(coefficients))
+            self.assertTrue(set(retained).issubset(set(current)))
+
     def test_model_selection_uses_cv_not_validation(self) -> None:
         models = [("one", dummy_model("one", 0.2, 9.0)), ("two", dummy_model("two", 0.4, 0.1))]
         self.assertEqual(select_final_model_by_cv(models)[0], "one")

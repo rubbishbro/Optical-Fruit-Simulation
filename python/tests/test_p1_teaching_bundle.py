@@ -44,6 +44,35 @@ class P1TeachingBundleTests(unittest.TestCase):
             self.bundle["stages"]["modeling"]["stage_run_id"],
         )
 
+    def test_p1_identity_contracts_are_explicit(self) -> None:
+        model = self.bundle["stages"]["modeling"]["visual"]
+        self.assertEqual(model["scores_sample_ids"], model["sample_ids"])
+        self.assertEqual(model["scores"]["shape"][0], len(model["scores_sample_ids"]))
+        source_indices = model["coefficient_source_indices"]["__ndarray__"]
+        self.assertEqual(model["coefficients"]["shape"][0], len(source_indices))
+        cars = next(item for item in self.bundle["stages"]["feature_analysis"] if item["method_specs"][0]["method_id"] == "cars")
+        for state in cars["visual"]["states"]:
+            current = state["arrays"]["current_indices"]["__ndarray__"]
+            retained = state["arrays"]["retained_indices"]["__ndarray__"]
+            coefficients = state["arrays"]["coefficients"]["__ndarray__"]
+            self.assertEqual(len(current), len(coefficients))
+            self.assertTrue(set(retained).issubset(set(current)))
+
+    def test_playback_plan_and_results_graph_include_pca_and_cars(self) -> None:
+        plan_ids = [item["stage_run_id"] for item in self.bundle["playback_plan"]]
+        self.assertIn("feature-analysis-pca", plan_ids)
+        self.assertIn("feature-analysis-cars", plan_ids)
+        self.assertLess(plan_ids.index("feature-analysis-pca"), plan_ids.index("feature-selection-cars.select"))
+        self.assertLess(plan_ids.index("feature-analysis-cars"), plan_ids.index("feature-selection-cars.select"))
+        stage_ids = set(plan_ids)
+        for edge in self.bundle["results_graph"]["edges"]:
+            self.assertIn(edge["source_stage_run_id"], stage_ids)
+            self.assertIn(edge["target_stage_run_id"], stage_ids)
+        edges = {(edge["source_stage_run_id"], edge["target_stage_run_id"]) for edge in self.bundle["results_graph"]["edges"]}
+        self.assertIn(("preprocessing", "feature-analysis-pca"), edges)
+        self.assertIn(("preprocessing", "feature-analysis-cars"), edges)
+        self.assertIn(("feature-analysis-cars", "feature-selection-cars.select"), edges)
+
     def test_stage_refs_are_resolvable(self) -> None:
         stage_ids = {
             item["stage_run_id"]

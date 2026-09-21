@@ -688,7 +688,14 @@ def _cars(values: Any, parameters: Mapping[str, Any], seed: int) -> MethodExecut
             retained = np.sort(current[ranking[:retained_count]])
         states.append(IntermediateState(
             f"cars_iteration_{iteration + 1}", "feature_selection", "remove_features",
-            {"retained_indices": retained.copy(), "coefficients": coefficients.copy()},
+            {
+                # ``coefficients[j]`` is fitted for ``current_indices[j]``.
+                # Keeping both arrays makes this identity explicit after a
+                # non-prefix feature removal.
+                "current_indices": current.copy(),
+                "retained_indices": retained.copy(),
+                "coefficients": coefficients.copy(),
+            },
             {
                 "iteration": iteration + 1,
                 "rmsecv": rmsecv,
@@ -782,16 +789,44 @@ def _plsr(values: Any, parameters: Mapping[str, Any], seed: int) -> MethodExecut
         values.sample_ids, values.y, prediction, residual, tuple(split),
         metadata={"model": "PLSR", "validation_indices": validation.tolist()},
     )
+    x_scores_all = np.asarray(model.transform(values.X))
+    x_scores_calibration = x_scores_all[fit]
+    coefficient_source_indices = np.asarray(values.selected_indices, dtype=int)
+    score_sample_ids_all = tuple(values.sample_ids)
+    calibration_sample_ids = tuple(values.sample_ids[index] for index in fit)
     return MethodExecutionResult(
         ModelResult(
             "plsr", predictions, evaluation,
-            {"n_components": components, "coefficients": np.asarray(model.coef_).reshape(-1), "x_scores": np.asarray(model.x_scores_)},
+            {
+                "n_components": components,
+                "coefficients": np.asarray(model.coef_).reshape(-1),
+                "coefficient_source_indices": coefficient_source_indices.copy(),
+                "x_scores_all": x_scores_all.copy(),
+                "x_scores_calibration": x_scores_calibration.copy(),
+                "x_score_sample_ids_all": score_sample_ids_all,
+                "calibration_sample_ids": calibration_sample_ids,
+                "fit_indices": fit.copy(),
+                "validation_indices": validation.copy(),
+            },
         ),
         metrics=evaluation.to_dict(),
         intermediate_states=[IntermediateState(
             "plsr_fit", "model", "connect_feature_to_prediction",
-            {"scores": np.asarray(model.x_scores_), "coefficients": np.asarray(model.coef_).reshape(-1), "predictions": prediction.copy(), "residuals": residual.copy()},
-            {"n_components": components},
+            {
+                "scores": x_scores_all.copy(),
+                "scores_calibration": x_scores_calibration.copy(),
+                "coefficients": np.asarray(model.coef_).reshape(-1),
+                "coefficient_source_indices": coefficient_source_indices.copy(),
+                "predictions": prediction.copy(),
+                "residuals": residual.copy(),
+            },
+            {
+                "n_components": components,
+                "scores_sample_ids": list(score_sample_ids_all),
+                "calibration_sample_ids": list(calibration_sample_ids),
+                "fit_indices": fit.tolist(),
+                "validation_indices": validation.tolist(),
+            },
         )],
     )
 

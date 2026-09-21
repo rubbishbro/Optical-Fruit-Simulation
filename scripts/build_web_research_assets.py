@@ -166,11 +166,33 @@ def main() -> int:
         }
 
     def experiment_contract(value: Any) -> dict[str, Any]:
+        def recipe(stage: Any) -> list[dict[str, Any]]:
+            return [
+                {
+                    "method_id": spec.method_id,
+                    "invocation_id": spec.invocation_id,
+                    "parameters": spec.parameters,
+                    "resolved_parameters": spec.resolved_parameters,
+                }
+                for spec in stage.method_specs
+            ]
+
         modeling = [stage for stage in value.stage_runs if stage.stage.value == "modeling"]
+        preprocessing = next(stage for stage in value.stage_runs if stage.stage.value == "preprocessing")
+        analyses = [stage for stage in value.stage_runs if stage.stage.value == "feature_analysis"]
         selection = next((stage for stage in value.stage_runs if stage.stage.value == "feature_selection"), None)
         selected_count = None
         if selection is not None and hasattr(selection.output, "selected_indices"):
             selected_count = int(len(selection.output.selected_indices))
+        final_model = next(
+            (stage.output for stage in modeling if stage.method_specs[0].invocation_id == value.final_model_id),
+            None,
+        )
+        collapse_ratio = None
+        if final_model is not None and hasattr(final_model, "predictions"):
+            validation = final_model.predictions.validation_view()
+            target_std = float(np.std(validation.y_true))
+            collapse_ratio = float(np.std(validation.y_pred) / target_std) if target_std > 1e-12 else None
         return {
             "experiment_id": value.experiment_id,
             "dataset_id": value.dataset_id,
@@ -178,6 +200,12 @@ def main() -> int:
             "final_model_id": value.final_model_id,
             "final_metrics": None if value.final_metrics is None else value.final_metrics.to_dict(),
             "selected_feature_count": selected_count,
+            "collapse_ratio": collapse_ratio,
+            "preprocessing_recipe": recipe(preprocessing),
+            "feature_analysis_recipe": [recipe(stage) for stage in analyses],
+            "selection_source_invocation_id": value.pipeline_definition.feature_selection.source_invocation_id,
+            "selection_recipe": recipe(selection) if selection is not None else [],
+            "modeling_recipe": [recipe(stage) for stage in modeling],
             "model_invocations": [
                 {
                     "stage_run_id": stage.stage_run_id,
@@ -190,10 +218,56 @@ def main() -> int:
             ],
         }
 
+    active_stage_list = [data_stage, preprocessing_stage]
+    active_pca_stage = next(stage for stage in analysis_stages if stage.method_chain == ["pca"])
+    active_cars_stage = next(stage for stage in analysis_stages if stage.method_chain == ["cars"])
+    active_stage_list.extend([active_pca_stage, active_cars_stage, selection_stage, modeling_stage, results_stage])
+
+    playback_plan = [
+        {"stage_run_id": data_stage.stage_run_id, "stage": data_stage.stage.value, "role": "main"},
+        {"stage_run_id": preprocessing_stage.stage_run_id, "stage": preprocessing_stage.stage.value, "role": "main"},
+        {
+            "stage_run_id": active_pca_stage.stage_run_id,
+            "stage": active_pca_stage.stage.value,
+            "role": "analysis_branch",
+            "branch_from": preprocessing_stage.stage_run_id,
+        },
+        {
+            "stage_run_id": active_cars_stage.stage_run_id,
+            "stage": active_cars_stage.stage.value,
+            "role": "model_branch",
+            "branch_from": preprocessing_stage.stage_run_id,
+        },
+        {"stage_run_id": selection_stage.stage_run_id, "stage": selection_stage.stage.value, "role": "main"},
+        {"stage_run_id": modeling_stage.stage_run_id, "stage": modeling_stage.stage.value, "role": "main"},
+        {"stage_run_id": results_stage.stage_run_id, "stage": results_stage.stage.value, "role": "main"},
+    ]
+    results_graph = {
+        "nodes": [
+            {
+                "stage_run_id": stage.stage_run_id,
+                "stage": stage.stage.value,
+                "method_id": stage.method_specs[0].method_id,
+                "invocation_id": stage.method_specs[0].invocation_id,
+                "parameters": stage.parameters,
+            }
+            for stage in active_stage_list
+        ],
+        "edges": [
+            {
+                "source_stage_run_id": stage.input_ref.removeprefix("stage:"),
+                "target_stage_run_id": stage.stage_run_id,
+                "input_ref": stage.input_ref,
+            }
+            for stage in active_stage_list
+            if stage.input_ref.startswith("stage:")
+        ],
+    }
+
     original = data_stage.output
     processed = preprocessing_stage.output
-    pca_stage = next(stage for stage in analysis_stages if stage.method_chain == ["pca"])
-    cars_stage = next(stage for stage in analysis_stages if stage.method_chain == ["cars"])
+    pca_stage = active_pca_stage
+    cars_stage = active_cars_stage
     pca_output = pca_stage.output
     cars_output = cars_stage.output
     selection_output = selection_stage.output
@@ -304,8 +378,16 @@ def main() -> int:
                 "y_pred": model_output.predictions.y_pred,
                 "residuals": model_output.predictions.residuals,
                 "split": list(model_output.predictions.split),
-                "scores": model_output.model_metadata.get("x_scores", []),
+                "scores": model_output.model_metadata.get("x_scores_all", []),
+                "scores_sample_ids": model_output.model_metadata.get("x_score_sample_ids_all", []),
+                "scores_calibration": model_output.model_metadata.get("x_scores_calibration", []),
+                "calibration_sample_ids": model_output.model_metadata.get("calibration_sample_ids", []),
+                "fit_indices": model_output.model_metadata.get("fit_indices", []),
+                "validation_indices": model_output.model_metadata.get("validation_indices", []),
                 "coefficients": model_output.model_metadata.get("coefficients", []),
+                "coefficient_source_indices": model_output.model_metadata.get("coefficient_source_indices", []),
+                "coefficient_wavelengths": original.wavelengths[selection_output.selected_indices],
+                "wavelengths": original.wavelengths,
                 "evaluation": model_output.evaluation.to_dict(),
                 "collapse_ratio": collapse_ratio,
             },
@@ -338,7 +420,7 @@ def main() -> int:
     )
     serialized_stages = [stage.to_dict() for stage in experiment.stage_runs]
     workflow_summary = {
-        "schema_version": 1,
+        "schema_version": 2,
         "experiment_id": experiment.experiment_id,
         "dataset_id": experiment.dataset_id,
         "data_boundary": "synthetic demonstration; inspect source manifest before scientific use",
@@ -366,7 +448,7 @@ def main() -> int:
         json.dumps(workflow_summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     p1_bundle = {
-        "schema_version": 1,
+        "schema_version": 2,
         "experiment_id": experiment.experiment_id,
         "dataset_id": experiment.dataset_id,
         "source": {
@@ -385,6 +467,8 @@ def main() -> int:
         "configuration_snapshot": experiment.configuration_snapshot,
         "stages": p1_stages,
         "pipeline_order": ["data_inspection", "preprocessing", "feature_analysis", "feature_selection", "modeling", "results"],
+        "playback_plan": playback_plan,
+        "results_graph": results_graph,
         "animation_events": [
             "show_spectrum", "highlight_sample", "morph_curve", "show_mean", "show_std", "show_formula", "project_points",
             "highlight_loading", "remove_features", "select_features", "connect_feature_to_prediction",

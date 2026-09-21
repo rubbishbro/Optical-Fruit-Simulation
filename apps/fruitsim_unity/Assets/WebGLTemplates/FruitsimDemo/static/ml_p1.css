@@ -26,6 +26,7 @@
 .ml-chart-frame { position:relative; min-height:360px; border-top:1px solid #e1e5e7; border-bottom:1px solid #e1e5e7; background:#fff; }
 #ml-chart { display:block; width:100%; height:auto; min-height:340px; }
 .ml-chart-error { position:absolute; inset:20px; display:grid; place-content:center; color:#8a3e2c; background:#fff8f4; border:1px solid #dbc7b9; padding:15px; text-align:center; font-size:12px; }
+.ml-chart-error[hidden] { display:none !important; }
 .ml-legend { min-height:25px; padding:7px 0 0; color:var(--muted); font-size:11px; }
 .ml-legend span { display:inline-flex; align-items:center; gap:5px; margin-right:13px; }
 .ml-legend i { display:inline-block; width:10px; height:10px; border:1px solid #52606c; }
@@ -43,6 +44,17 @@
 .ml-pipeline-links { display:flex; flex-wrap:wrap; gap:5px; align-items:center; }
 .ml-pipeline-links button { border:1px solid #aeb8bf; background:#fff; color:var(--blue); padding:6px 8px; cursor:pointer; font-size:11px; }
 .ml-pipeline-links b { color:var(--orange); font-size:16px; }
+.ml-stage-run-graph { align-items:stretch; }
+.ml-stage-run-graph button { display:grid; gap:2px; min-width:145px; text-align:left; }
+.ml-stage-run-graph button strong { color:var(--blue); font-size:12px; }
+.ml-stage-run-graph button span { color:var(--ink); font:11px ui-monospace,monospace; }
+.ml-stage-run-graph button small { color:var(--muted); font:10px ui-monospace,monospace; }
+.ml-graph-row { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+.ml-graph-branches { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 0; padding-left:28px; }
+.ml-graph-branches > div { display:flex; align-items:center; gap:6px; border-left:2px solid var(--orange); padding-left:8px; }
+.ml-branch-label { color:var(--muted); font-size:10px; white-space:nowrap; }
+.ml-graph-note { margin:0 0 8px; color:var(--muted); font-size:11px; }
+.ml-table-scroll { overflow:auto; }
 .ml-metric-grid { display:grid; grid-template-columns:repeat(4,1fr); border:1px solid var(--line); }
 .ml-metric-grid div { padding:8px; border-right:1px solid var(--line); }
 .ml-metric-grid div:last-child { border:0; }
