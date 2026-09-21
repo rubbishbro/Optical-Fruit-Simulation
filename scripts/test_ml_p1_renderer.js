@@ -5,6 +5,7 @@ const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
 const contract = require(path.join(__dirname, "../apps/fruitsim_unity/Assets/WebGLTemplates/FruitsimDemo/static/ml_p1_contract.js"));
+const controller = require(path.join(__dirname, "../apps/fruitsim_unity/Assets/WebGLTemplates/FruitsimDemo/static/ml_p1_controller.js"));
 
 function testInterpolation() {
   assert.deepStrictEqual(contract.interpolateArray([0, 2], [10, 6], 0), [0, 2]);
@@ -49,8 +50,42 @@ function testRendererFallbackAndPlaybackPlan() {
   assert.strictEqual(contract.fadeOpacity(true, 1), 0);
 }
 
+function testControllerBehavior() {
+  const active = { stage_run_id: "experiment-pre", states: [{ event: "show_formula" }] };
+  const comparison = { stage_run_id: "comparison-sg15", states: [{ event: "show_formula" }] };
+  assert.strictEqual(controller.resolvePreprocessingTeachingStage(active, comparison, false), comparison);
+  assert.strictEqual(controller.resolvePreprocessingTeachingStage(active, comparison, true), active);
+  assert.strictEqual(controller.resolveStepIndex(0, 6), 0);
+  assert.strictEqual(controller.resolveStepIndex(undefined, 6), 5);
+  assert.strictEqual(controller.transitionStartProgress("morph_curve", 0.5, false), 0);
+  assert.strictEqual(controller.transitionStartProgress("morph_curve", 0.5, true), 0.5);
+  assert.strictEqual(controller.transitionStartProgress("show_mean", 0.5, true), 1);
+  const axisRange = controller.interpolationAxisRange([[0, 10]], [[5, 15]], -1, 1);
+  assert(Math.abs(axisRange[0] + 0.9) < 1e-12);
+  assert(Math.abs(axisRange[1] - 15.9) < 1e-12);
+  const graph = controller.buildResultsGraphModel({
+    nodes: [
+      { stage_run_id: "raw-stage-x", method_id: "raw", invocation_id: "raw_x" },
+      { stage_run_id: "prep-stage-y", method_id: "sg", invocation_id: "sg15_teacher" },
+      { stage_run_id: "model-stage-z", method_id: "plsr", invocation_id: "plsr_stable" },
+    ],
+    edges: [
+      { source_stage_run_id: "raw-stage-x", target_stage_run_id: "prep-stage-y", input_ref: "stage:raw-stage-x" },
+      { source_stage_run_id: "prep-stage-y", target_stage_run_id: "model-stage-z", input_ref: "stage:prep-stage-y" },
+    ],
+  });
+  assert.deepStrictEqual(graph.levels.map((level) => level.map((node) => node.invocation_id)), [
+    ["raw_x"], ["sg15_teacher"], ["plsr_stable"],
+  ]);
+  assert.strictEqual(graph.edges[1].target_stage_run_id, "model-stage-z");
+  const groups = controller.categoricalGroups(["batch-b", "batch-a", "batch-b"]);
+  assert.deepStrictEqual(groups.unique, ["batch-b", "batch-a"]);
+  assert.strictEqual(groups.index.get("batch-a"), 1);
+}
+
 testInterpolation();
 testIdentityMappings();
 testResizeHitMapping();
 testRendererFallbackAndPlaybackPlan();
+testControllerBehavior();
 console.log("P1.1 renderer contract tests passed");

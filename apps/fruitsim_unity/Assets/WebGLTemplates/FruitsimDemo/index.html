@@ -252,7 +252,10 @@
     document.querySelector('#connect-btn').onclick=connect;document.querySelector('#start-btn').onclick=()=>command('run.start',{mode:'math',seed:Number(document.querySelector('#seed').value),samples:Number(document.querySelector('#samples').value)},document.querySelector('#run-id').value.trim());document.querySelector('#cancel-btn').onclick=()=>command('run.cancel',{},document.querySelector('#run-id').value.trim());document.querySelector('#replay-btn').onclick=()=>{if(gateway&&gateway.readyState===WebSocket.OPEN)gateway.send(JSON.stringify({type:'replay',after_seq:0}));};
     const buildUrl='Build',loaderUrl=buildUrl+'/{{{ LOADER_FILENAME }}}';const config={dataUrl:buildUrl+'/{{{ DATA_FILENAME }}}',frameworkUrl:buildUrl+'/{{{ FRAMEWORK_FILENAME }}}',codeUrl:buildUrl+'/{{{ CODE_FILENAME }}}',streamingAssetsUrl:'StreamingAssets',companyName:'Fruitsim',productName:'Fruitsim Research Workbench',productVersion:'0.2',showBanner:(msg,type)=>log(`${type||'info'}: ${msg}`),devicePixelRatio:1};const script=document.createElement('script');script.src=loaderUrl;script.onload=()=>createUnityInstance(canvas,config,progress=>{document.querySelector('#progress div').style.width=`${progress*100}%`;}).then(instance=>{unityInstance=instance;document.querySelector('#loading').style.display='none';unityState.textContent='UNITY READY';log('Unity WebGL ready');}).catch(error=>{unityState.textContent='UNITY FAILED';log(`Unity load error: ${error}`);});document.body.appendChild(script);
   </script>
+  <script>window.__FRUITSIM_P1_HARNESS__ = new URLSearchParams(location.search).has('harness');</script>
   <script src="static/ml_p1_contract.js"></script>
+  <script src="static/ml_p1_controller.js"></script>
   <script src="static/ml_p1.js"></script>
+  <script>if (window.__FRUITSIM_P1_HARNESS__) { const script = document.createElement('script'); script.src = 'static/ml_p1_browser_harness.js'; document.body.appendChild(script); }</script>
 </body>
 </html>
