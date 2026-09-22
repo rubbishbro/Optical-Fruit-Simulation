@@ -127,14 +127,18 @@ def main() -> int:
         spectrum_from_run,
     )
 
-    workflow_output = ROOT / "results/ml_workflow_demo"
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from build_teaching_dataset import build_teaching_run
+
+    teaching_run = build_teaching_run(ROOT / "results/ml_teaching_dataset")
+    workflow_output = ROOT / "results/ml_workflow_teaching_demo"
     experiment = run_workflow_from_run(
-        ROOT / "results/frontend_acceptance_20260920/student_demo_final/math_seed20260919",
+        teaching_run,
         workflow_output,
-        experiment_id="web_ml_workflow_demo",
+        experiment_id="web_ml_teaching_demo",
         seed=20260920,
     )
-    spectrum = spectrum_from_run(ROOT / "results/frontend_acceptance_20260920/student_demo_final/math_seed20260919")
+    spectrum = spectrum_from_run(teaching_run)
     data_stage = next(stage for stage in experiment.stage_runs if stage.stage.value == "data_inspection")
     preprocessing_stage = next(stage for stage in experiment.stage_runs if stage.stage.value == "preprocessing")
     analysis_stages = [stage for stage in experiment.stage_runs if stage.stage.value == "feature_analysis"]
@@ -423,7 +427,7 @@ def main() -> int:
         "schema_version": 2,
         "experiment_id": experiment.experiment_id,
         "dataset_id": experiment.dataset_id,
-        "data_boundary": "synthetic demonstration; inspect source manifest before scientific use",
+        "data_boundary": "SYNTHETIC_TEACHING only; visualization and teaching evidence, not experimental evidence",
         "pipeline": experiment.pipeline_definition.to_dict(),
         "stages": [
             {
@@ -453,7 +457,7 @@ def main() -> int:
         "dataset_id": experiment.dataset_id,
         "source": {
             "source_type": spectrum.metadata.get("source_type", "unknown"),
-            "data_boundary": "synthetic demonstration; inspect source manifest before scientific use",
+            "data_boundary": "SYNTHETIC_TEACHING only; visualization and teaching evidence, not experimental evidence",
             "target_name": spectrum.metadata.get("target_name"),
             "sample_count": len(original.sample_ids),
             "feature_count": len(original.feature_names),

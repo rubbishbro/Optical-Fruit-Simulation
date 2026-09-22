@@ -6,6 +6,9 @@
   report.id = 'ml-p1-harness-result';
   report.style.cssText = 'position:fixed;z-index:99999;left:4px;bottom:4px;max-width:95vw;max-height:45vh;overflow:auto;background:#111;color:#d7f7d7;padding:8px;font:11px monospace;white-space:pre-wrap';
   document.body.appendChild(report);
+  const runtimeErrors = [];
+  window.addEventListener('error', (event) => runtimeErrors.push(`${String(event.message || event.error || 'window error')} @ ${event.filename || '-'}:${event.lineno || '-'}`));
+  window.addEventListener('unhandledrejection', (event) => runtimeErrors.push(String(event.reason || 'unhandled rejection')));
 
   const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
   async function waitFor(predicate, timeout) {
@@ -30,6 +33,18 @@
     const pass = (name) => results.push({ name, pass: true });
     const runCheck = (name, fn) => { fn(); pass(name); };
 
+    phase = 'teaching-mode-entry';
+    document.querySelector('#ml-teaching-mode').click();
+    await waitFor(() => !document.querySelector('#ml-teaching-scene').hidden && document.querySelector('.teaching-scene-contract'));
+    runCheck('teaching mode exposes the TeachingScene contract', () => {
+      check(document.querySelector('#page-ml').classList.contains('teaching-mode'), 'teaching mode class is missing');
+      check(document.querySelector('.teaching-scene-contract').textContent.includes('输入 Input'), 'input object badge is missing');
+      check(document.querySelector('.teaching-scene-contract').textContent.includes('输出 Output'), 'output object badge is missing');
+      check(document.querySelector('#ml-teaching-pipeline .teaching-pipeline button.active'), 'teaching pipeline has no active node');
+      check(document.querySelector('.teaching-svg'), 'teaching SVG is missing');
+    });
+    document.querySelector('#ml-analysis-mode').click();
+
     phase = 'select-comparison';
     stageButton('preprocessing').click();
     const comparison = document.querySelector('#ml-stage-controls select');
@@ -42,6 +57,9 @@
     runCheck('preprocessing highlight_sample uses raw renderer', () => {
       check(state.animation.steps[0].state === state.bundle.stages.preprocessing.comparisons.find((item) => item.stage_run_id === snv.value).states[0], 'SNV teaching source is not selected comparison');
       check(document.querySelector('#ml-chart-error').hidden, 'preprocessing highlight_sample raised chart error');
+      check(state.animation.steps.some((item) => item.event === 'show_centered'), 'SNV teaching steps omit centered spectrum');
+      check(document.querySelector('.teaching-scene-contract').textContent.includes('SpectrumSet'), 'SNV object badge is missing');
+      check(document.querySelector('.teaching-selected-wavelength'), 'selected wavelength is not highlighted in teaching SVG');
     });
     debug.pauseAnimation();
 
@@ -64,6 +82,20 @@
     debug.setStageByRunId('feature-analysis-cars');
     state.renderMode = 'analysis'; state.animation.index = 0; debug.render();
     runCheck('CARS step zero is iteration one', () => check(document.querySelector('#ml-chart').dataset.carsIteration === '1', `CARS iteration was ${document.querySelector('#ml-chart').dataset.carsIteration}`));
+
+    phase = 'teaching-stage-scenes';
+    state.renderMode = 'teaching'; state.animation.index = 0; debug.render();
+    runCheck('CARS teaching keeps wavelength positions ordered', () => {
+      const positions = Array.from(document.querySelectorAll('.teaching-wavelength-mark')).map((mark) => Number(mark.getAttribute('x1')));
+      check(positions.length > 0 && positions.every((value, index) => index === 0 || value >= positions[index - 1]), 'CARS wavelength marks were reordered');
+      check(document.querySelector('.teaching-scene').textContent.includes('内部 RMSECV'), 'CARS heuristic warning is missing');
+    });
+    debug.setStageByRunId('feature-analysis-pca'); state.animation.index = 0; debug.render();
+    runCheck('PCA teaching has matrix-to-score steps', () => {
+      check(state.animation.steps.map((item) => item.event).join(',') === 'show_matrix,center_matrix,project_points', 'PCA teaching event sequence is incomplete');
+      check(document.querySelector('.teaching-scene').textContent.includes('diagnostic branch'), 'PCA diagnostic branch annotation is missing');
+    });
+    document.querySelector('#ml-analysis-mode').click();
 
     phase = 'results-dag';
     const graphEdges = Array.from(document.querySelectorAll('[data-graph-edge]')).map((edge) => `${edge.dataset.sourceStageRunId}->${edge.dataset.targetStageRunId}`);
@@ -110,6 +142,7 @@
     document.querySelector('#ml-pause').click();
     check(state.animation.playing && Math.abs(state.animation.transitionProgress - pausedAt) < 0.04, 'resume restarted transition from zero');
     pass('resume continues transition from paused progress');
+    runCheck('browser runtime has no uncaught errors', () => check(runtimeErrors.length === 0, runtimeErrors.join(' | ')));
 
     debug.pauseAnimation();
     report.textContent = JSON.stringify({ pass: true, checks: results }, null, 2);
