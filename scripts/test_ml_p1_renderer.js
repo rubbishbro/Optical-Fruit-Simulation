@@ -78,6 +78,29 @@ function testControllerBehavior() {
     ["raw_x"], ["sg15_teacher"], ["plsr_stable"],
   ]);
   assert.strictEqual(graph.edges[1].target_stage_run_id, "model-stage-z");
+  const branchedGraph = controller.buildResultsGraphModel({
+    nodes: [
+      { stage_run_id: "raw-stage-renamed", method_id: "raw", invocation_id: "raw_demo" },
+      { stage_run_id: "prep-stage-renamed", method_id: "sg", invocation_id: "sg15_teacher" },
+      { stage_run_id: "pca-stage-renamed", method_id: "pca", invocation_id: "pca_explainer" },
+      { stage_run_id: "cars-stage-renamed", method_id: "cars", invocation_id: "cars_stable" },
+      { stage_run_id: "selection-stage-renamed", method_id: "cars.select", invocation_id: "selection_final" },
+    ],
+    edges: [
+      { source_stage_run_id: "raw-stage-renamed", target_stage_run_id: "prep-stage-renamed" },
+      { source_stage_run_id: "prep-stage-renamed", target_stage_run_id: "pca-stage-renamed" },
+      { source_stage_run_id: "prep-stage-renamed", target_stage_run_id: "cars-stage-renamed" },
+      { source_stage_run_id: "cars-stage-renamed", target_stage_run_id: "selection-stage-renamed" },
+    ],
+  });
+  assert.deepStrictEqual(branchedGraph.parents.get("pca-stage-renamed"), ["prep-stage-renamed"]);
+  assert.deepStrictEqual(branchedGraph.parents.get("cars-stage-renamed"), ["prep-stage-renamed"]);
+  assert.deepStrictEqual(branchedGraph.children.get("prep-stage-renamed"), ["pca-stage-renamed", "cars-stage-renamed"]);
+  assert.deepStrictEqual(branchedGraph.parents.get("selection-stage-renamed"), ["cars-stage-renamed"]);
+  assert(!branchedGraph.children.get("pca-stage-renamed").includes("cars-stage-renamed"));
+  assert.deepStrictEqual(branchedGraph.levels.map((level) => level.map((node) => node.stage_run_id)), [
+    ["raw-stage-renamed"], ["prep-stage-renamed"], ["pca-stage-renamed", "cars-stage-renamed"], ["selection-stage-renamed"],
+  ]);
   const groups = controller.categoricalGroups(["batch-b", "batch-a", "batch-b"]);
   assert.deepStrictEqual(groups.unique, ["batch-b", "batch-a"]);
   assert.strictEqual(groups.index.get("batch-a"), 1);

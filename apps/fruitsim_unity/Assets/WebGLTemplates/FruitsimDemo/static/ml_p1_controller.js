@@ -57,9 +57,15 @@
       return Object.assign({}, edge);
     });
     const outgoing = new Map(nodes.map((node) => [node.stage_run_id, []]));
+    const parents = new Map(nodes.map((node) => [node.stage_run_id, []]));
+    const children = new Map(nodes.map((node) => [node.stage_run_id, []]));
     const indegree = new Map(nodes.map((node) => [node.stage_run_id, 0]));
     edges.forEach((edge) => {
-      outgoing.get(edge.source_stage_run_id).push(edge.target_stage_run_id);
+      const source = edge.source_stage_run_id;
+      const target = edge.target_stage_run_id;
+      outgoing.get(source).push(target);
+      children.get(source).push(target);
+      parents.get(target).push(source);
       indegree.set(edge.target_stage_run_id, indegree.get(edge.target_stage_run_id) + 1);
     });
     const queue = nodes.filter((node) => indegree.get(node.stage_run_id) === 0).sort((a, b) => a._order);
@@ -89,7 +95,7 @@
       rows[level].push(node);
     });
     nodes.forEach((node) => { delete node._order; });
-    return { nodes, edges, ordered, levels: rows.filter(Boolean) };
+    return { nodes, edges, ordered, levels: rows.filter(Boolean), parents, children };
   }
 
   function categoricalGroups(values) {

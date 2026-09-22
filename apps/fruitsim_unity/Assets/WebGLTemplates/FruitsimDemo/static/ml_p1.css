@@ -44,15 +44,22 @@
 .ml-pipeline-links { display:flex; flex-wrap:wrap; gap:5px; align-items:center; }
 .ml-pipeline-links button { border:1px solid #aeb8bf; background:#fff; color:var(--blue); padding:6px 8px; cursor:pointer; font-size:11px; }
 .ml-pipeline-links b { color:var(--orange); font-size:16px; }
-.ml-stage-run-graph { align-items:stretch; }
+.ml-stage-run-graph { display:block; }
 .ml-stage-run-graph button { display:grid; gap:2px; min-width:145px; text-align:left; }
 .ml-stage-run-graph button strong { color:var(--blue); font-size:12px; }
 .ml-stage-run-graph button span { color:var(--ink); font:11px ui-monospace,monospace; }
 .ml-stage-run-graph button small { color:var(--muted); font:10px ui-monospace,monospace; }
-.ml-graph-row { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
-.ml-graph-branches { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:8px 0; padding-left:28px; }
-.ml-graph-branches > div { display:flex; align-items:center; gap:6px; border-left:2px solid var(--orange); padding-left:8px; }
-.ml-branch-label { color:var(--muted); font-size:10px; white-space:nowrap; }
+.ml-dag { display:grid; gap:10px; }
+.ml-dag-level { display:flex; gap:10px; align-items:stretch; flex-wrap:wrap; padding:4px 0; }
+.ml-dag-node { display:grid; gap:4px; min-width:145px; flex:0 1 190px; }
+.ml-dag-node button { width:100%; }
+.ml-dag-relations { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font:10px ui-monospace,monospace; }
+.ml-dag-relations.parents { color:var(--blue); }
+.ml-dag-relations.children { color:var(--orange); }
+.ml-dag-edge-list { display:grid; gap:4px; border-top:1px solid var(--line); padding-top:8px; color:var(--muted); font:10px ui-monospace,monospace; }
+.ml-dag-edge-list strong { color:var(--ink); font:600 10px Arial,"Noto Sans SC",sans-serif; text-transform:uppercase; letter-spacing:.05em; }
+.ml-dag-edge { display:flex; gap:7px; align-items:center; padding:3px 6px; background:#fafbfb; border-left:2px solid var(--orange); }
+.ml-dag-edge b { color:var(--orange); }
 .ml-graph-note { margin:0 0 8px; color:var(--muted); font-size:11px; }
 .ml-table-scroll { overflow:auto; }
 .ml-metric-grid { display:grid; grid-template-columns:repeat(4,1fr); border:1px solid var(--line); }
