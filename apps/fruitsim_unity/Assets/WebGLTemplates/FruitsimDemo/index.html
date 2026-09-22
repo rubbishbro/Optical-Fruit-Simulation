@@ -173,41 +173,43 @@
     <section id="page-ml" class="view">
       <div class="view-title"><div><h2>ML 实验讲解台</h2><p>按 StageRun 读取已经完成的实验；图、解释与教学步骤来自同一份结构化结果。</p></div><span id="ml-source-tag" class="tag">LOADING P1 BUNDLE</span></div>
       <article class="sheet ml-p1-toolbar">
-        <label>Experiment <select id="ml-experiment-select" aria-label="选择实验"></select></label>
-        <label>Selected sample <select id="ml-sample-select" aria-label="选择样本"></select></label>
-        <label>Selected wavelength <select id="ml-feature-select" aria-label="选择波长"></select></label>
-        <button id="ml-play-pipeline" class="primary ml-toolbar-button">▶ Play Pipeline Explanation</button>
+        <label>实验 / Experiment <select id="ml-experiment-select" aria-label="选择实验"></select></label>
+        <label>样本 / Selected sample <select id="ml-sample-select" aria-label="选择样本"></select></label>
+        <label>波长 / Selected wavelength <select id="ml-feature-select" aria-label="选择波长"></select></label>
+        <div id="ml-mode-switch" class="ml-mode-switch" aria-label="显示模式"><button id="ml-analysis-mode" class="active"><strong>分析模式</strong><small>Analysis</small></button><button id="ml-teaching-mode"><strong>教学模式</strong><small>Teaching</small></button></div>
+        <button id="ml-play-pipeline" class="primary ml-toolbar-button">▶ 播放全链路 <small>Play Pipeline</small></button>
         <span id="ml-play-status" class="ml-status">ready</span>
       </article>
+      <div id="ml-teaching-pipeline" class="ml-teaching-pipeline-wrap" hidden></div>
       <article class="sheet ml-p1-shell" data-legacy-summary="static/ml_workflow_summary.json">
         <div id="ml-stage-tabs" class="stage-tabs" aria-label="ML 阶段页面"></div>
         <div class="ml-stage-meta">
-          <div><span>Experiment ID</span><code id="ml-experiment-id">-</code></div>
-          <div><span>Dataset</span><code id="ml-dataset-id">-</code></div>
-          <div><span>StageRun</span><code id="ml-stage-run-id">-</code></div>
-          <div><span>Invocation</span><code id="ml-invocation-id">-</code></div>
-          <div><span>Input ref</span><code id="ml-input-ref">-</code></div>
-          <div><span>Source</span><code id="ml-source-type">-</code></div>
+          <div><span>实验 / Experiment ID</span><code id="ml-experiment-id">-</code></div>
+          <div><span>数据集 / Dataset</span><code id="ml-dataset-id">-</code></div>
+          <div><span>阶段运行 / StageRun</span><code id="ml-stage-run-id">-</code></div>
+          <div><span>调用 / Invocation</span><code id="ml-invocation-id">-</code></div>
+          <div><span>输入引用 / Input ref</span><code id="ml-input-ref">-</code></div>
+          <div><span>来源 / Source</span><code id="ml-source-type">-</code></div>
         </div>
         <div class="ml-p1-grid">
           <aside class="ml-explanation">
-            <h3>Explanation</h3>
-            <section><h4>What</h4><p id="ml-what">正在读取结构化实验。</p></section>
-            <section><h4>Why</h4><p id="ml-why">-</p></section>
-            <section><h4>How</h4><p id="ml-how">-</p></section>
-            <section><h4>How to read this figure</h4><p id="ml-read">-</p></section>
-            <section><h4>What happened</h4><p id="ml-happened">-</p></section>
-            <section><h4>Interpretation</h4><p id="ml-interpretation">-</p></section>
+            <h3>教学讲解 <small>Explanation</small></h3>
+            <section><h4>这一步看什么？ <small>What</small></h4><p id="ml-what">正在读取结构化实验。</p></section>
+            <section><h4>为什么？ <small>Why</small></h4><p id="ml-why">-</p></section>
+            <section><h4>如何处理？ <small>How</small></h4><p id="ml-how">-</p></section>
+            <section><h4>如何读图？ <small>How to read</small></h4><p id="ml-read">-</p></section>
+            <section><h4>真实结果发生了什么？ <small>What happened</small></h4><p id="ml-happened">-</p></section>
+            <section><h4>保守解释 <small>Interpretation</small></h4><p id="ml-interpretation">-</p></section>
           </aside>
           <section class="ml-evidence">
             <div class="ml-evidence-head"><div><h3 id="ml-stage-title">Stage</h3><p id="ml-stage-subtitle">真实 StageRun 证据</p></div><div id="ml-stage-switches" class="ml-switches"></div></div>
-            <div class="ml-chart-frame"><canvas id="ml-chart" width="980" height="520" aria-label="ML 教学图表"></canvas><div id="ml-chart-error" class="ml-chart-error" hidden></div></div>
+            <div class="ml-chart-frame"><canvas id="ml-chart" width="980" height="520" aria-label="ML 分析图表"></canvas><div id="ml-teaching-scene" class="ml-teaching-scene-host" hidden></div><div id="ml-chart-error" class="ml-chart-error" hidden></div></div>
             <div id="ml-legend" class="ml-legend"></div>
             <div id="ml-stage-controls" class="ml-stage-controls"></div>
           </section>
         </div>
         <div class="ml-animation-bar">
-          <button id="ml-restart">↺ Restart</button><button id="ml-previous">◀ Previous</button><button id="ml-next">Next ▶</button><button id="ml-pause">Ⅱ Pause</button>
+          <button id="ml-restart">↺ 重启 <small>Restart</small></button><button id="ml-previous">◀ 上一步 <small>Previous</small></button><button id="ml-next">下一步 ▶ <small>Next</small></button><button id="ml-pause">Ⅱ 暂停 <small>Pause</small></button>
           <input id="ml-timeline" type="range" min="0" max="0" value="0" aria-label="教学时间线"><span id="ml-timeline-label">Step 0 / 0</span>
           <span id="ml-event-label" class="ml-event-label">event: -</span>
         </div>
@@ -255,6 +257,7 @@
   <script>window.__FRUITSIM_P1_HARNESS__ = new URLSearchParams(location.search).has('harness');</script>
   <script src="static/ml_p1_contract.js"></script>
   <script src="static/ml_p1_controller.js"></script>
+  <script src="static/ml_p1_teaching.js"></script>
   <script src="static/ml_p1.js"></script>
   <script>if (window.__FRUITSIM_P1_HARNESS__) { const script = document.createElement('script'); script.src = 'static/ml_p1_browser_harness.js'; document.body.appendChild(script); }</script>
 </body>

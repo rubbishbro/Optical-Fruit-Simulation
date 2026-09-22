@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -23,9 +24,10 @@ def free_port() -> int:
 
 
 def main() -> int:
+    web_root = Path(os.environ.get("FRUITSIM_BROWSER_ROOT", str(TEMPLATE))).resolve()
     port = free_port()
     server = subprocess.Popen(
-        [sys.executable, "-m", "http.server", str(port), "--bind", "127.0.0.1", "--directory", str(TEMPLATE)],
+        [sys.executable, "-m", "http.server", str(port), "--bind", "127.0.0.1", "--directory", str(web_root)],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )

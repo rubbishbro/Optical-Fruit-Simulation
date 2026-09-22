@@ -4,12 +4,12 @@
 
   const $ = (id) => document.getElementById(id);
   const STAGE_LABELS = {
-    data_inspection: 'Data Inspection',
-    preprocessing: 'Preprocessing',
-    feature_analysis: 'Feature Analysis',
-    feature_selection: 'Feature Selection',
-    modeling: 'Modeling',
-    results: 'Results'
+    data_inspection: '数据检查 · Data Inspection',
+    preprocessing: '预处理 · Preprocessing',
+    feature_analysis: '特征分析 · Feature Analysis',
+    feature_selection: '特征选择 · Feature Selection',
+    modeling: '建模 · Modeling',
+    results: '结果 · Results'
   };
   const PALETTE = { blue: '#205c86', blueLight: '#cfe0ec', orange: '#b45f38', gold: '#c78b2b', ink: '#17212b', muted: '#64717d', grid: '#dfe5e8', red: '#9b4b3d', green: '#3e7652' };
   const CONTRACT = window.FruitsimP1Contract;
@@ -336,9 +336,14 @@
       if (stage.stage === 'preprocessing' && event === 'show_formula') {
         steps.push({ event: 'highlight_sample', state: item, narration: 'Step 1 · 原始光谱：先固定同一个 sample，后续所有页面沿用它。' });
         steps.push({ event: 'show_mean', state: item, narration: 'Step 2 · 对每个 sample 计算自己的光谱均值 μ。' });
-        steps.push({ event: 'show_std', state: item, narration: 'Step 3 · 对每个 sample 计算自己的标准差 σ。' });
-        steps.push({ event: 'show_formula', state: item, narration: `Step 4 · ${item.values && item.values.formula ? item.values.formula : 'x′ = (x − μ) / σ'}` });
-        steps.push({ event: 'morph_curve', state: item, narration: 'Step 5 · 使用同一个 IntermediateState，把曲线从 raw morph 到 normalized。' });
+        steps.push({ event: 'show_centered', state: item, narration: 'Step 3 · 先减去均值，得到 centered spectrum：x − μ。' });
+        steps.push({ event: 'show_std', state: item, narration: 'Step 4 · 再显示该 sample 的标准差 σ，说明尺度如何被估计。' });
+        steps.push({ event: 'show_formula', state: item, narration: `Step 5 · ${item.values && item.values.formula ? item.values.formula : 'x′ = (x − μ) / σ'}` });
+        steps.push({ event: 'morph_curve', state: item, narration: 'Step 6 · 使用同一个 IntermediateState，把曲线从 raw morph 到 normalized。' });
+      } else if (stage.stage === 'feature_analysis' && event === 'project_points') {
+        steps.push({ event: 'show_matrix', state: item, narration: 'Step 1 · 把代表性光谱整理成矩阵 X：每行是一个 sample。' });
+        steps.push({ event: 'center_matrix', state: item, narration: 'Step 2 · 对矩阵按 wavelength 中心化，得到 Xc。' });
+        steps.push({ event: 'project_points', state: item, narration: narration('project_points', item.values || {}) });
       } else if (stage.stage === 'modeling' && event === 'connect_feature_to_prediction') {
         steps.push({ event: 'connect_feature_to_prediction', state: item, narration: narration('connect_feature_to_prediction', item.values || {}) });
         steps.push({ event: 'show_prediction', state: item, narration: narration('show_prediction', item.values || {}) });
@@ -349,7 +354,7 @@
     return steps;
   }
 
-  function narration(event, values) { const table = { highlight_sample: '固定一个 sample，观察它在不同阶段的对应位置。', morph_curve: '曲线形状发生变化，但 sample id 与 wavelength axis 保持不变。', show_mean: '均值是该 sample 的基线位置，不是跨样本的全局均值。', show_std: '标准差描述该 sample 沿波长方向的尺度。', show_formula: values.formula || '显示该方法的计算关系。', project_points: '高维光谱被投影到少数几个可观察的主方向。', highlight_loading: 'loading 把主方向与原始 wavelength 联系起来。', remove_features: `第 ${values.iteration || '-'} 轮保留约 ${values.feature_count || '-'} 个波长。`, select_features: '只有高亮的 selected wavelengths 会进入模型。', connect_feature_to_prediction: 'selected feature 经过模型映射，生成 prediction 与 residual。', show_prediction: '逐个 sample 对照 true target 与 prediction。', show_residual: '残差是 prediction − true，零线是无偏差参照。', show_metric: '展示当前 ExperimentRun 已保存的指标。' }; return table[event] || `event: ${event} · 未知事件使用安全回退，不重新执行算法。`; }
+  function narration(event, values) { const table = { highlight_sample: '固定一个 sample，观察它在不同阶段的对应位置。', morph_curve: '曲线形状发生变化，但 sample id 与 wavelength axis 保持不变。', show_mean: '均值是该 sample 的基线位置，不是跨样本的全局均值。', show_centered: '中心化只改变信号的参考零点，不改变 sample 与 wavelength 的身份。', show_std: '标准差描述该 sample 沿波长方向的尺度。', show_formula: values.formula || '显示该方法的计算关系。', show_matrix: '把光谱数据显式看成 sample × wavelength 矩阵。', center_matrix: '每一列减去均值，得到用于 PCA 的中心化矩阵 Xc。', project_points: '高维光谱被投影到少数几个可观察的主方向；PCA 在这里是诊断分支，不是 SSC 预测器。', highlight_loading: 'loading 把主方向与原始 wavelength 联系起来。', remove_features: `第 ${values.iteration || '-'} 轮保留约 ${values.feature_count || '-'} 个波长。`, select_features: '只有高亮的 selected wavelengths 会进入模型。', connect_feature_to_prediction: 'selected feature 经过模型映射，生成 prediction 与 residual。', show_prediction: '逐个 sample 对照 true target 与 prediction。', show_residual: '残差是 prediction − true，零线是无偏差参照。', show_metric: '展示当前 ExperimentRun 已保存的指标。' }; return table[event] || `event: ${event} · 未知事件使用安全回退，不重新执行算法。`; }
 
   function stageLabel(stage) { if (!stage) return '-'; if (stage.stage === 'feature_analysis') return `Feature Analysis · ${(stage.methods[0] || 'method').toUpperCase()}`; return STAGE_LABELS[stage.stage] || stage.stage; }
 
@@ -372,6 +377,9 @@
 
   function controlsForStage(stage) {
     const container = $('ml-stage-controls'); if (!container) return; container.innerHTML = '';
+    if (state.renderMode === 'teaching') {
+      const note = document.createElement('span'); note.className = 'ml-teaching-control-note'; note.textContent = '教学模式：控制器只读取已保存的 StageRun / IntermediateState。'; container.appendChild(note); return;
+    }
     const button = (label, mode, active, target) => { const item = document.createElement('button'); item.textContent = label; item.className = active ? 'active' : ''; item.onclick = () => { state[target === 'chart' ? 'chartMode' : 'stageMode'] = mode; render(); }; return item; };
     if (state.stageKey === 'data_inspection') { container.appendChild(button('Spectra', 'spectrum', state.stageMode === 'spectrum')); container.appendChild(button('Heatmap', 'heatmap', state.stageMode === 'heatmap')); container.appendChild(button('Target distribution', 'target', state.stageMode === 'target')); }
     if (state.stageKey === 'preprocessing') { ['overlay', 'difference', 'heatmap'].forEach((mode) => container.appendChild(button(mode, mode, state.chartMode === mode, 'chart'))); const select = document.createElement('select'); state.bundle.stages.preprocessing.comparisons.forEach((item) => { const option = document.createElement('option'); option.value = item.stage_run_id; option.textContent = item.method_specs.map((spec) => `${spec.invocation_id} ${JSON.stringify(spec.parameters)}`).join(' → '); option.selected = item.stage_run_id === state.comparisonId; select.appendChild(option); }); select.onchange = () => { state.comparisonId = select.value; render(); }; container.appendChild(select); }
@@ -381,7 +389,7 @@
     if (state.stageKey === 'results') container.appendChild(button('Metrics', 'metrics', true));
   }
 
-  function stageTabs() { const tabs = $('ml-stage-tabs'); tabs.innerHTML = ''; state.bundle.pipeline_order.forEach((key) => { const button = document.createElement('button'); button.dataset.stageKey = key; button.textContent = STAGE_LABELS[key]; button.onclick = () => { stopAnimation(); state.renderMode = 'analysis'; state.stageKey = key; state.stageMode = key === 'feature_analysis' ? 'pca' : key === 'preprocessing' ? 'overlay' : key === 'modeling' ? 'validation' : 'spectrum'; state.chartMode = key === 'modeling' ? 'prediction' : key === 'feature_analysis' ? 'scores' : key === 'preprocessing' ? 'overlay' : 'default'; state.animation.index = 0; render(); }; tabs.appendChild(button); }); }
+  function stageTabs() { const tabs = $('ml-stage-tabs'); tabs.innerHTML = ''; state.bundle.pipeline_order.forEach((key) => { const button = document.createElement('button'); button.dataset.stageKey = key; const parts = STAGE_LABELS[key].split(' · '); button.innerHTML = `<strong>${parts[0]}</strong><small>${parts[1] || ''}</small>`; button.onclick = () => { stopAnimation(); state.stageKey = key; state.stageMode = key === 'feature_analysis' ? 'pca' : key === 'preprocessing' ? 'overlay' : key === 'modeling' ? 'validation' : 'spectrum'; state.chartMode = key === 'modeling' ? 'prediction' : key === 'feature_analysis' ? 'scores' : key === 'preprocessing' ? 'overlay' : 'default'; state.animation.index = 0; render(); }; tabs.appendChild(button); }); }
 
   function renderAnalysisStage() {
     if (state.stageKey === 'data_inspection') drawData(state.stageMode);
@@ -398,13 +406,23 @@
   }
 
   function renderTeachingStep(step) {
-    const renderer = CONTRACT.resolveRenderer(step.event, RENDERERS, fallbackRenderer);
     setText('ml-event-narration', step.narration || narration(step.event, step.values || {}));
+    if (window.FruitsimP1Teaching) {
+      const scene = window.FruitsimP1Teaching.buildScene(currentStageObject(), state.bundle, state);
+      state.teachingScene = scene;
+      $('ml-teaching-scene').hidden = false;
+      $('ml-teaching-pipeline').hidden = false;
+      window.FruitsimP1Teaching.render($('ml-teaching-scene'), scene, step, state, { stage: currentStageObject(), stepIndex: state.animation.index, progress: state.animation.transitionProgress });
+      window.FruitsimP1Teaching.renderPipeline($('ml-teaching-pipeline'), state, scene);
+      $('ml-teaching-pipeline').querySelectorAll('[data-teaching-pipeline-key]').forEach((button) => { button.onclick = () => { const key = button.dataset.teachingPipelineKey; const target = key === 'pca' || key === 'cars' ? key : key; if (target === 'pca' || target === 'cars') { state.stageKey = 'feature_analysis'; state.stageMode = target === 'pca' ? 'pca' : (stageItems().find((item) => item.method_specs[0].method_id === 'cars') || {}).method_specs?.[0]?.invocation_id || 'cars'; } else { state.stageKey = target; state.stageMode = target === 'preprocessing' ? 'overlay' : target === 'modeling' ? 'validation' : 'spectrum'; } state.animation.index = 0; render(); }; });
+      return;
+    }
+    const renderer = CONTRACT.resolveRenderer(step.event, RENDERERS, fallbackRenderer);
     renderer(step, { stage: currentStageObject(), stepIndex: state.animation.index, progress: state.animation.transitionProgress });
   }
 
   function render() {
-    if (!state.bundle) return; const stage = currentStageObject(); if (!stage) return; const buttons = document.querySelectorAll('#ml-stage-tabs button'); buttons.forEach((button) => button.classList.toggle('active', button.dataset.stageKey === state.stageKey)); updateMeta(stage); setText('ml-stage-title', stageLabel(stage)); setText('ml-stage-subtitle', `${stage.methods.join(' → ')} · ${stage.intermediate_state_count} saved IntermediateState`); explain(stage); controlsForStage(stage); hideError();
+    if (!state.bundle) return; const stage = currentStageObject(); if (!stage) return; const page = $('page-ml'); page.classList.toggle('teaching-mode', state.renderMode === 'teaching'); page.classList.toggle('analysis-mode', state.renderMode !== 'teaching'); const frame = document.querySelector('.ml-chart-frame'); if (frame) frame.classList.toggle('has-teaching-scene', state.renderMode === 'teaching'); const buttons = document.querySelectorAll('#ml-stage-tabs button'); buttons.forEach((button) => button.classList.toggle('active', button.dataset.stageKey === state.stageKey)); const analysisButton = $('ml-analysis-mode'), teachingButton = $('ml-teaching-mode'); if (analysisButton) analysisButton.classList.toggle('active', state.renderMode !== 'teaching'); if (teachingButton) teachingButton.classList.toggle('active', state.renderMode === 'teaching'); updateMeta(stage); setText('ml-stage-title', stageLabel(stage)); setText('ml-stage-subtitle', `${stage.methods.join(' → ')} · ${stage.intermediate_state_count} saved IntermediateState`); explain(stage); controlsForStage(stage); hideError();
     // Refresh the event list before selecting the current step. At a
     // pipeline stage boundary the previous stage's event must never render
     // against the newly selected StageRun.
@@ -412,7 +430,7 @@
     try {
       const step = state.animation.steps[state.animation.index];
       if (state.renderMode === 'teaching' && step) renderTeachingStep(step);
-      else renderAnalysisStage();
+      else { $('ml-teaching-scene').hidden = true; $('ml-teaching-pipeline').hidden = true; renderAnalysisStage(); }
       renderResultsOverview();
     } catch (error) { showError(error); }
   }
@@ -434,9 +452,9 @@
   }
   function queueAdvance() { if (state.animation.timerId !== null) window.clearTimeout(state.animation.timerId); state.animation.timerId = window.setTimeout(advancePlayback, 260); }
   function advancePlayback() { state.animation.timerId = null; if (!state.animation.playing) return; const steps = state.animation.steps; if (state.animation.index < steps.length - 1) { applyStep(state.animation.index + 1, { advance: true }); return; } if (state.animation.pipeline && state.animation.pipelineIndex < state.animation.plan.length - 1) { state.animation.pipelineIndex += 1; setStageByRunId(state.animation.plan[state.animation.pipelineIndex].stage_run_id); state.animation.index = 0; updateTimeline(); render(); applyStep(0, { advance: true }); return; } stopAnimation(); hideError(); render(); }
-  function stopAnimation() { cancelMotion(); state.animation.playing = false; state.animation.pipeline = false; state.animation.transitionProgress = 1; setText('ml-pause', '▶ Play'); }
-  function pauseAnimation() { cancelMotion(); state.animation.playing = false; setText('ml-pause', '▶ Resume'); }
-  function playAnimation(pipeline, resume) { if (!resume) { stopAnimation(); state.animation.pipeline = !!pipeline; state.animation.plan = state.animation.pipeline ? CONTRACT.buildPlaybackPlan(state.bundle) : []; state.animation.pipelineIndex = state.animation.pipeline ? 0 : state.animation.pipelineIndex; if (state.animation.pipeline) { setStageByRunId(state.animation.plan[0].stage_run_id); state.animation.index = 0; updateTimeline(); } } else { state.animation.pipeline = !!pipeline; } state.renderMode = 'teaching'; state.animation.playing = true; setText('ml-pause', 'Ⅱ Pause'); applyStep(state.animation.index, { advance: true, resume: !!resume }); }
+  function stopAnimation() { cancelMotion(); state.animation.playing = false; state.animation.pipeline = false; state.animation.transitionProgress = 1; setText('ml-pause', '▶ 播放'); }
+  function pauseAnimation() { cancelMotion(); state.animation.playing = false; setText('ml-pause', '▶ 继续'); }
+  function playAnimation(pipeline, resume) { if (!resume) { stopAnimation(); state.animation.pipeline = !!pipeline; state.animation.plan = state.animation.pipeline ? CONTRACT.buildPlaybackPlan(state.bundle) : []; state.animation.pipelineIndex = state.animation.pipeline ? 0 : state.animation.pipelineIndex; if (state.animation.pipeline) { setStageByRunId(state.animation.plan[0].stage_run_id); state.animation.index = 0; updateTimeline(); } } else { state.animation.pipeline = !!pipeline; } state.renderMode = 'teaching'; state.animation.playing = true; setText('ml-pause', 'Ⅱ 暂停'); applyStep(state.animation.index, { advance: true, resume: !!resume }); }
 
   function safeText(value) { return String(value === undefined || value === null ? '-' : value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character])); }
   function resultsGraphMarkup(graph) {
@@ -475,12 +493,14 @@
     $('ml-next').onclick = () => { pauseAnimation(); applyStep(state.animation.index + 1); };
     $('ml-pause').onclick = () => { if (state.animation.playing) pauseAnimation(); else playAnimation(state.animation.pipeline, true); };
     $('ml-play-pipeline').onclick = () => { playAnimation(true, false); };
+    $('ml-analysis-mode').onclick = () => { pauseAnimation(); state.renderMode = 'analysis'; render(); };
+    $('ml-teaching-mode').onclick = () => { state.renderMode = 'teaching'; updateTimeline(); render(); };
     $('ml-timeline').oninput = (event) => { pauseAnimation(); applyStep(Number(event.target.value)); };
     $('ml-chart').onclick = (event) => { const rect = event.target.getBoundingClientRect(); const point = CONTRACT.mapPointerToCanvas(event, rect, state.canvasLogical.width, state.canvasLogical.height); let nearest = null, distance = Infinity; state.hitPoints.forEach((candidate) => { const d = Math.hypot(candidate.x - point.x, candidate.y - point.y); if (d < distance) { nearest = candidate; distance = d; } }); if (!nearest || distance > 18) return; if (nearest.sampleId) { state.selectedSampleId = nearest.sampleId; $('ml-sample-select').value = nearest.sampleId; } if (nearest.featureIndex !== undefined) { setSelectedFeature(nearest.featureIndex); $('ml-feature-select').value = nearest.featureIndex; } render(); };
     window.addEventListener('resize', () => { if (state.bundle && document.querySelector('#page-ml').classList.contains('active')) render(); });
   }
 
-    function loadBundle(bundle) { state.bundle = decode(bundle); state.activeExperimentId = state.bundle.experiment_id; state.comparisonExperimentId = state.bundle.experiment_id; state.selectedSampleId = state.bundle.selected_sample_id; const sampleSelect = $('ml-sample-select'), featureSelect = $('ml-feature-select'), data = state.bundle.stages.data_inspection.visual; arr(data.sample_ids, 'sample ids').forEach((id) => { const option = document.createElement('option'); option.value = id; option.textContent = id; sampleSelect.appendChild(option); }); sampleSelect.value = state.selectedSampleId; arr(data.wavelengths, 'wavelengths').forEach((value, index) => { const option = document.createElement('option'); option.value = index; option.textContent = `${value} nm`; featureSelect.appendChild(option); }); setSelectedFeature(0); featureSelect.value = '0'; state.comparisonId = state.bundle.stages.preprocessing.comparisons.find((item) => item.method_specs.some((spec) => spec.invocation_id === 'snv')).stage_run_id; const expSelect = $('ml-experiment-select'); state.bundle.experiments.forEach((item) => { const option = document.createElement('option'); option.value = item.experiment_id; option.textContent = item.experiment_id === state.bundle.experiment_id ? `${item.experiment_id} · active` : `${item.experiment_id} · comparison`; expSelect.appendChild(option); }); expSelect.value = state.comparisonExperimentId; expSelect.onchange = () => { state.comparisonExperimentId = expSelect.value; const isComparison = state.comparisonExperimentId !== state.bundle.experiment_id; setText('ml-play-status', isComparison ? 'comparison shown in Results table; stage detail remains active' : 'ready'); render(); }; setText('ml-source-tag', `${state.bundle.source.source_type.toUpperCase()} · ${state.bundle.source.sample_count} samples`); stageTabs(); bind(); if (window.__FRUITSIM_P1_HARNESS__) window.__FruitsimP1Debug = { state, render, applyStep, playAnimation, pauseAnimation, setStageByRunId }; render(); }
+    function loadBundle(bundle) { state.bundle = decode(bundle); state.activeExperimentId = state.bundle.experiment_id; state.comparisonExperimentId = state.bundle.experiment_id; state.selectedSampleId = state.bundle.selected_sample_id; const sampleSelect = $('ml-sample-select'), featureSelect = $('ml-feature-select'), data = state.bundle.stages.data_inspection.visual; arr(data.sample_ids, 'sample ids').forEach((id) => { const option = document.createElement('option'); option.value = id; option.textContent = id; sampleSelect.appendChild(option); }); sampleSelect.value = state.selectedSampleId; arr(data.wavelengths, 'wavelengths').forEach((value, index) => { const option = document.createElement('option'); option.value = index; option.textContent = `${value} nm`; featureSelect.appendChild(option); }); setSelectedFeature(0); featureSelect.value = '0'; state.comparisonId = state.bundle.stages.preprocessing.comparisons.find((item) => item.method_specs.some((spec) => spec.invocation_id === 'snv')).stage_run_id; const expSelect = $('ml-experiment-select'); state.bundle.experiments.forEach((item) => { const option = document.createElement('option'); option.value = item.experiment_id; option.textContent = item.experiment_id === state.bundle.experiment_id ? `${item.experiment_id} · active` : `${item.experiment_id} · comparison`; expSelect.appendChild(option); }); expSelect.value = state.comparisonExperimentId; expSelect.onchange = () => { state.comparisonExperimentId = expSelect.value; const isComparison = state.comparisonExperimentId !== state.bundle.experiment_id; setText('ml-play-status', isComparison ? 'comparison shown in Results table; stage detail remains active' : 'ready'); render(); }; setText('ml-source-tag', `${state.bundle.source.source_type.toUpperCase()} · ${state.bundle.source.sample_count} samples`); stageTabs(); bind(); if (window.__FRUITSIM_P1_HARNESS__) window.__FruitsimP1Debug = { state, render, applyStep, playAnimation, pauseAnimation, setStageByRunId, eventSteps }; render(); }
 
   fetch('static/ml_p1_bundle.json').then((response) => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); }).then(loadBundle).catch((error) => { console.error('[Fruitsim P1] bundle initialization failed', error && error.stack ? error.stack : error); setText('ml-play-status', 'bundle unavailable'); showError(error && error.stack ? error.stack : error); });
 }());
