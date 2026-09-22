@@ -441,10 +441,22 @@
   function safeText(value) { return String(value === undefined || value === null ? '-' : value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character])); }
   function resultsGraphMarkup(graph) {
     const model = CONTROLLER.buildResultsGraphModel(graph);
-    const nodeButton = (node) => `<button data-jump-run="${safeText(node.stage_run_id)}" title="${safeText(node.input_ref || '')}"><strong>${safeText(node.method_id)}</strong><span>${safeText(node.invocation_id)}</span><small>${safeText(node.stage_run_id)}</small></button>`;
-    const rows = model.levels.map((level, index) => `<div class="ml-graph-row" data-graph-level="${index}">${level.map(nodeButton).join('<b>→</b>')}</div>`).join('<div class="ml-graph-arrow">↓</div>');
-    const edges = model.edges.map((edge) => `${safeText(edge.source_stage_run_id)} → ${safeText(edge.target_stage_run_id)}`).join(' · ');
-    return `${rows}<small class="ml-graph-edges">edges: ${edges || '-'}</small>`;
+    const byId = new Map(model.nodes.map((node) => [node.stage_run_id, node]));
+    const relationLabel = (stageRunId) => {
+      const node = byId.get(stageRunId);
+      return node ? `${node.method_id}@${node.invocation_id}` : stageRunId;
+    };
+    const nodeButton = (node) => {
+      const parents = model.parents.get(node.stage_run_id) || [];
+      const children = model.children.get(node.stage_run_id) || [];
+      const relation = (kind, ids, arrow) => ids.length
+        ? `<div class="ml-dag-relations ${kind}">${arrow} ${ids.map((id) => safeText(relationLabel(id))).join(', ')}</div>`
+        : '';
+      return `<div class="ml-dag-node" data-graph-node="${safeText(node.stage_run_id)}"><button data-jump-run="${safeText(node.stage_run_id)}" title="${safeText(node.input_ref || '')}"><strong>${safeText(node.method_id)}</strong><span>${safeText(node.invocation_id)}</span><small>${safeText(node.stage_run_id)}</small></button>${relation('parents', parents, 'parent:')}${relation('children', children, 'child:')}</div>`;
+    };
+    const rows = model.levels.map((level, index) => `<div class="ml-dag-level" data-graph-level="${index}">${level.map(nodeButton).join('')}</div>`).join('');
+    const edges = model.edges.map((edge) => `<div class="ml-dag-edge" data-graph-edge data-source-stage-run-id="${safeText(edge.source_stage_run_id)}" data-target-stage-run-id="${safeText(edge.target_stage_run_id)}"><span>${safeText(relationLabel(edge.source_stage_run_id))}</span><b aria-hidden="true">→</b><span>${safeText(relationLabel(edge.target_stage_run_id))}</span></div>`).join('');
+    return `<div class="ml-dag" data-graph-dag>${rows}<div class="ml-dag-edge-list"><strong>directed edges</strong>${edges || '<span>-</span>'}</div></div>`;
   }
 
   function renderResultsOverview() {

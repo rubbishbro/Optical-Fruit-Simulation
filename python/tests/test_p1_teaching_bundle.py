@@ -72,6 +72,13 @@ class P1TeachingBundleTests(unittest.TestCase):
         self.assertIn(("preprocessing", "feature-analysis-pca"), edges)
         self.assertIn(("preprocessing", "feature-analysis-cars"), edges)
         self.assertIn(("feature-analysis-cars", "feature-selection-cars.select"), edges)
+        self.assertNotIn(("feature-analysis-pca", "feature-analysis-cars"), edges)
+        parents = {}
+        for source, target in edges:
+            parents.setdefault(target, set()).add(source)
+        self.assertEqual(parents["feature-analysis-pca"], {"preprocessing"})
+        self.assertEqual(parents["feature-analysis-cars"], {"preprocessing"})
+        self.assertEqual(parents["feature-selection-cars.select"], {"feature-analysis-cars"})
 
     def test_stage_refs_are_resolvable(self) -> None:
         stage_ids = {

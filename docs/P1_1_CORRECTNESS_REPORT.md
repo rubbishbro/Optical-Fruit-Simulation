@@ -1,6 +1,6 @@
 # Fruitsim P1.1 Correctness and Teaching Playback Report
 
-Date: 2026-09-21
+Date: 2026-09-22
 
 P1.1 repairs the correctness boundary of the existing P1 teaching workbench. It does not add a new ML algorithm or refit a model in the browser. The browser consumes the saved `StageRun` bundle and renders its arrays, values, sample IDs, feature indices, and references.
 
@@ -68,5 +68,76 @@ The first check with `python -m http.server` showed Unity failure because that g
 
 - The demonstration bundle remains explicitly synthetic (`SYNTHETIC_MATH`) and is labeled as such in the UI. It is not evidence of real-apple generalization.
 - The Results page is intentionally a metrics overview; residual-shaped data in a Results `IntermediateState` is not used as a Results renderer input.
+- Results graph rendering now preserves the saved DAG: PCA and CARS are sibling nodes with the same preprocessing parent, CARS alone feeds feature selection, and no same-level sibling arrow is fabricated. The graph model exposes explicit `parents` and `children` adjacency maps.
 - The CARS curve remains an internal selection heuristic, not an unbiased nested-CV estimate.
 - Manim export, new ML algorithms, and richer Unity physical NIR rendering remain P2 work.
+
+## P1.1 final cleanup verification — second pass
+
+This pass only corrected the Results DAG presentation and added the corresponding graph-model and browser assertions. No P2 feature was added.
+
+### DAG contract
+
+- `buildResultsGraphModel()` now returns `parents` and `children` adjacency maps keyed by `stage_run_id`.
+- Results markup renders nodes by topological level without joining sibling nodes with an arrow.
+- Directed arrows are emitted only from `results_graph.edges`; the DOM exposes each edge through `data-graph-edge`, `data-source-stage-run-id`, and `data-target-stage-run-id`.
+- The graph tests use renamed synthetic stage and invocation IDs, so they do not rely on the demonstration bundle's hardcoded names.
+- Verified relationships: `preprocessing → PCA`, `preprocessing → CARS`, `CARS → selection`, `selection → model`, and `model → results`; verified absence of `PCA → CARS`.
+
+### Final test commands and results
+
+Python suite:
+
+```bash
+env PYTHONNOUSERSITE=1 PYTHONPATH=python \
+  /home/rubbishbro/miniforge3/envs/mamba-torch311/bin/python \
+  -m unittest discover -s python/tests -p 'test_*.py' -v
+```
+
+Result: **74 passed, 2 skipped, 0 failed**. The skips remain the existing C++ mesh tests because the current C++ mesh build is unavailable.
+
+Node contract/controller and syntax checks:
+
+```bash
+node --check apps/fruitsim_unity/Assets/WebGLTemplates/FruitsimDemo/static/ml_p1_controller.js
+node --check apps/fruitsim_unity/Assets/WebGLTemplates/FruitsimDemo/static/ml_p1.js
+node scripts/test_ml_p1_renderer.js
+```
+
+Result: **1 contract/controller suite passed**, including renamed-invocation parent/child adjacency assertions; both JavaScript syntax checks passed.
+
+Real browser DOM interaction harness:
+
+```bash
+env PYTHONNOUSERSITE=1 PYTHONPATH=python \
+  /home/rubbishbro/miniforge3/envs/mamba-torch311/bin/python \
+  scripts/test_ml_p1_browser.py
+```
+
+Result: **8/8 browser checks passed**, including the new Results DAG check. The harness verified the three required edges, absence of the PCA/CARS sibling edge, and absence of same-level visual arrows.
+
+Unity correctness harness:
+
+```bash
+/home/rubbishbro/.local/bin/unity run apps/fruitsim_unity --timeout 420 -- \
+  -executeMethod AppleCorrectnessChecks.RunFromCommandLine -nographics \
+  -logFile /tmp/fruitsim-unity-p11-final-cleanup.log
+```
+
+Result: **29 passed, 0 failed**.
+
+WebGL build:
+
+```bash
+FRUITSIM_BUILD_TIMEOUT=900 bash scripts/build_fruitsim_unity_webgl.sh
+```
+
+Result: **successful**, Unity 6000.3.23f1 reported `Build Finished, Result: Success`, and the teaching shell was applied to `apps/fruitsim_unity/build/WebGL/index.html`.
+
+Diff hygiene:
+
+```bash
+git diff --check
+```
+
+Result: **0 whitespace errors**.

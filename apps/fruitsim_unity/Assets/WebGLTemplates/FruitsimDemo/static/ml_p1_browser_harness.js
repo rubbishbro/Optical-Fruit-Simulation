@@ -65,6 +65,16 @@
     state.renderMode = 'analysis'; state.animation.index = 0; debug.render();
     runCheck('CARS step zero is iteration one', () => check(document.querySelector('#ml-chart').dataset.carsIteration === '1', `CARS iteration was ${document.querySelector('#ml-chart').dataset.carsIteration}`));
 
+    phase = 'results-dag';
+    const graphEdges = Array.from(document.querySelectorAll('[data-graph-edge]')).map((edge) => `${edge.dataset.sourceStageRunId}->${edge.dataset.targetStageRunId}`);
+    runCheck('Results graph uses real parent-child edges', () => {
+      check(graphEdges.includes('preprocessing->feature-analysis-pca'), 'PCA parent edge is missing');
+      check(graphEdges.includes('preprocessing->feature-analysis-cars'), 'CARS parent edge is missing');
+      check(graphEdges.includes('feature-analysis-cars->feature-selection-cars.select'), 'CARS selection edge is missing');
+      check(!graphEdges.includes('feature-analysis-pca->feature-analysis-cars'), 'sibling PCA/CARS edge was fabricated');
+      check(document.querySelectorAll('.ml-dag-level b').length === 0, 'sibling nodes still contain visual arrows');
+    });
+
     phase = 'linked-wavelength';
     const feature = document.querySelector('#ml-feature-select');
     feature.value = '4'; dispatchChange(feature);
