@@ -76,6 +76,9 @@ public static class AppleCorrectnessChecks
         changed.visualMaterial.roughness += 0.01f;
         Check(baseline != AppleRequestIdentity.CreateSampleId(changed), "visual parameters must affect id");
         changed = AppleRequestIdentity.Snapshot(first);
+        changed.visualMaterial.color.a = 0.2f;
+        Check(baseline == AppleRequestIdentity.CreateSampleId(changed), "non-rendered alpha must not affect opaque apple identity");
+        changed = AppleRequestIdentity.Snapshot(first);
         changed.pose.position.x += 0.01f;
         Check(baseline != AppleRequestIdentity.CreateSampleId(changed), "pose is identity-relevant in P0");
     }
@@ -93,11 +96,15 @@ public static class AppleCorrectnessChecks
             Check(generator.Capabilities.activeVisualParameters.Contains("roughness"), "roughness must be runtime-active in P1");
             Check(generator.Capabilities.activeVisualParameters.Contains("spotDensity"), "spotDensity must be runtime-active in P1");
             Check(generator.Capabilities.activeVisualParameters.Contains("normalStrength"), "normalStrength must be runtime-active in P1");
+            Check(generator.Capabilities.activeVisualParameters.Contains("skinTransmission"), "skinTransmission must be runtime-active in P1");
             Renderer generatedRenderer = instance.unityObject.GetComponentInChildren<Renderer>(true);
             Check(generatedRenderer != null && generatedRenderer.sharedMaterial != null, "generated apple must have a runtime material");
+            Check(generatedRenderer.sharedMaterial.shader.name == "Fruitsim/AppleSkin", "generated apple must use the dedicated skin shader");
+            Check(Mathf.Abs(generatedRenderer.sharedMaterial.GetColor("_Color").a - 1.0f) < 0.0001f, "generated apple skin must remain opaque");
             Check(Mathf.Abs(generatedRenderer.sharedMaterial.GetFloat("_Roughness") - request.visualMaterial.roughness) < 0.0001f, "roughness must reach the shader");
             Check(Mathf.Abs(generatedRenderer.sharedMaterial.GetFloat("_SpotDensity") - request.visualMaterial.spotDensity) < 0.0001f, "spot density must reach the shader");
             Check(Mathf.Abs(generatedRenderer.sharedMaterial.GetFloat("_NormalStrength") - request.visualMaterial.normalStrength) < 0.0001f, "normal strength must reach the shader");
+            Check(Mathf.Abs(generatedRenderer.sharedMaterial.GetFloat("_SkinTransmission") - request.visualMaterial.skinTransmission) < 0.0001f, "skin transmission must reach the shader");
             string sampleId = instance.sampleId;
             float geometrySnapshot = instance.geometry.heightRatio;
             float physicalSnapshot = instance.physical.waterContent;
@@ -126,6 +133,18 @@ public static class AppleCorrectnessChecks
             }
             Check(CountOwnedMaterialNames() == baselineMaterials, "repeated generate/destroy must not grow material count");
             Check(Resources.Load<GameObject>("FruitsimBlenderRig") == sharedSource, "shared source must not be destroyed");
+            Shader glassShader = Resources.Load<Shader>("FruitsimGlass");
+            Shader rigShader = Resources.Load<Shader>("FruitsimRig");
+            Check(glassShader != null && glassShader.name == "Fruitsim/SensorGlass", "detector glass shader must be loadable");
+            Check(rigShader != null && rigShader.name == "Fruitsim/RigSurface", "opaque rig shader must be loadable");
+            Material glassProbe = new Material(glassShader);
+            glassProbe.SetFloat("_Transmission", 1.0f);
+            glassProbe.SetFloat("_IOR", 1.5f);
+            glassProbe.SetFloat("_Roughness", 0.0752688f);
+            Check(Mathf.Abs(glassProbe.GetFloat("_Transmission") - 1.0f) < 0.0001f, "detector transmission must reach the glass shader");
+            Check(Mathf.Abs(glassProbe.GetFloat("_IOR") - 1.5f) < 0.0001f, "detector IOR must reach the glass shader");
+            Check(Mathf.Abs(glassProbe.GetFloat("_Roughness") - 0.0752688f) < 0.0001f, "detector roughness must reach the glass shader");
+            UnityEngine.Object.DestroyImmediate(glassProbe);
             Check(generator.Capabilities.metadataOnlyGeometryParameters.Contains("heightRatio"), "capabilities must expose metadata-only geometry fields");
 
             FruitsimAppleGeneratorBridge bridge = host.AddComponent<FruitsimAppleGeneratorBridge>();

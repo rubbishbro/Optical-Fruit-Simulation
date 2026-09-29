@@ -1,0 +1,42 @@
+{
+  "schema": "fruitsim.blender-rig-materials.v1",
+  "source": "assets/blender/detector.blend",
+  "detector_glass": {
+    "schema": "fruitsim.blender-principled-material.v1",
+    "object_name": "DetectorGlass",
+    "material_name": "材质.001",
+    "base_color": [
+      0.800000011920929,
+      0.800000011920929,
+      0.800000011920929
+    ],
+    "alpha": 1.0,
+    "roughness": 0.07526880502700806,
+    "metallic": 0.0,
+    "specular_ior_level": 0.5,
+    "ior": 1.5,
+    "transmission": 1.0,
+    "coat_weight": 0.0,
+    "coat_roughness": 0.029999999329447746,
+    "surface_render_method": "DITHERED"
+  },
+  "detector_housing": {
+    "schema": "fruitsim.blender-principled-material.v1",
+    "object_name": "DetectorHousing",
+    "material_name": "材质.003",
+    "base_color": [
+      0.800000011920929,
+      0.800000011920929,
+      0.800000011920929
+    ],
+    "alpha": 1.0,
+    "roughness": 0.3499999940395355,
+    "metallic": 0.0,
+    "specular_ior_level": 0.5,
+    "ior": 1.5,
+    "transmission": 0.0,
+    "coat_weight": 0.10000000149011612,
+    "coat_roughness": 0.029999999329447746,
+    "surface_render_method": "DITHERED"
+  }
+}

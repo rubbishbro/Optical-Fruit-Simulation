@@ -196,41 +196,74 @@ namespace Fruitsim.RunViewer
         {
             if (!visible)
             {
-                if (GUI.Button(new Rect(126.0f, 18.0f, 120.0f, 28.0f), "Show Run debug")) visible = true;
+                if (GUI.Button(new Rect(126.0f, 18.0f, 120.0f, 28.0f), "查看运行结果")) visible = true;
                 return;
             }
             GUILayout.BeginArea(new Rect(18.0f, 18.0f, 520.0f, 300.0f), GUI.skin.box);
-            GUILayout.Label("Fruitsim Run Debug", GUI.skin.GetStyle("boldLabel"));
+            GUILayout.Label("运行结果概览", GUI.skin.GetStyle("boldLabel"));
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Run directory", GUILayout.Width(100.0f));
+            GUILayout.Label("结果目录", GUILayout.Width(100.0f));
             runDirectory = GUILayout.TextField(runDirectory ?? string.Empty);
-            if (GUILayout.Button("Load", GUILayout.Width(60.0f))) LoadRun();
+            if (GUILayout.Button("读取", GUILayout.Width(60.0f))) LoadRun();
             GUILayout.EndHorizontal();
             if (snapshot == null)
             {
-                GUILayout.Label($"State: {viewerState}", GUI.skin.GetStyle("boldLabel"));
-                GUILayout.Label(lastError, GUI.skin.GetStyle("label"));
-                GUILayout.Label("Empty state: waiting for a valid Run contract.", GUI.skin.GetStyle("label"));
+                GUILayout.Label($"状态：{FriendlyStatus(viewerState.ToString())}", GUI.skin.GetStyle("boldLabel"));
+                GUILayout.Label(string.IsNullOrEmpty(lastError) ? "" : "无法读取结果，请检查目录。", GUI.skin.GetStyle("label"));
+                GUILayout.Label("请选择一个已生成的结果目录。", GUI.skin.GetStyle("label"));
             }
             else
             {
-                GUILayout.Label($"State: {viewerState}", GUI.skin.GetStyle("boldLabel"));
-                GUILayout.Label($"ID: {snapshot.manifest.run_id}");
-                GUILayout.Label($"State: {snapshot.status.state}  Stage: {snapshot.status.stage ?? "-"}");
-                GUILayout.Label($"Source: {snapshot.manifest.source_type}  Seed: {snapshot.manifest.seed}");
-                GUILayout.Label($"Samples: {snapshot.sampleRows}  Spectral rows: {snapshot.spectralRows}");
-                GUILayout.Label($"Artifacts: {(snapshot.artifacts.artifacts == null ? 0 : snapshot.artifacts.artifacts.Length)}");
-                GUILayout.Label($"Model: {snapshot.manifest.model_status}  Backend: {snapshot.manifest.backend}");
+                GUILayout.Label($"状态：{FriendlyStatus(snapshot.status.state)} · {FriendlyStage(snapshot.status.stage)}", GUI.skin.GetStyle("boldLabel"));
+                GUILayout.Label($"数据来源：{FriendlySource(snapshot.manifest.source_type)} · 随机种子：{snapshot.manifest.seed}");
+                GUILayout.Label($"样本数：{snapshot.sampleRows} · 光谱记录：{snapshot.spectralRows}");
+                GUILayout.Label($"结果文件：{(snapshot.artifacts.artifacts == null ? 0 : snapshot.artifacts.artifacts.Length)} 个");
+                GUILayout.Label($"模型状态：{FriendlyStatus(snapshot.manifest.model_status)} · 计算方式：{FriendlyBackend(snapshot.manifest.backend)}");
                 if (snapshot.manifest.warnings != null)
                     foreach (string warning in snapshot.manifest.warnings)
-                        GUILayout.Label($"Warning: {warning}", GUI.skin.GetStyle("warningLabel"));
+                        GUILayout.Label($"说明：{warning}", GUI.skin.GetStyle("warningLabel"));
             }
-            GUILayout.Label($"Polling: {pollSeconds:0.0}s  probes: {statusProbeCount}  loads: {loadCount}");
-            GUILayout.Label($"Runtime: {framesPerSecond:0.0} FPS  CPU: {cpuPercent:0.0}%  Objects: {objectCount}");
-            GUILayout.Label($"Memory: RSS {FormatBytes(residentBytes)}  GC {FormatBytes(managedBytes)}  Unity {FormatBytes(allocatedBytes)}  Mono {FormatBytes(monoBytes)}");
-            if (GUILayout.Button(visible ? "Hide debug panel" : "Show debug panel")) visible = !visible;
+            if (GUILayout.Button("关闭结果面板")) visible = false;
             GUILayout.EndArea();
         }
+
+        private static string FriendlyStatus(string value)
+        {
+            switch ((value ?? string.Empty).ToLowerInvariant())
+            {
+                case "completed": case "succeeded": case "ready": return "已完成";
+                case "running": return "处理中";
+                case "failed": case "error": return "处理失败";
+                case "cancelled": return "已取消";
+                case "idle": case "waiting": return "等待开始";
+                case "empty": return "等待选择结果";
+                case "recoverableerror": return "结果读取遇到问题";
+                case "blockingerror": return "结果无法读取";
+                default: return string.IsNullOrEmpty(value) ? "未知" : value;
+            }
+        }
+
+        private static string FriendlyStage(string value)
+        {
+            switch ((value ?? string.Empty).ToLowerInvariant())
+            {
+                case "data_inspection": case "data": return "读取数据";
+                case "preprocessing": return "光谱预处理";
+                case "feature_analysis": return "特征分析";
+                case "feature_selection": return "波长筛选";
+                case "modeling": return "模型预测";
+                case "results": return "结果汇总";
+                default: return string.IsNullOrEmpty(value) ? "未开始" : value;
+            }
+        }
+
+        private static string FriendlySource(string value) =>
+            string.IsNullOrEmpty(value) || value.IndexOf("synthetic", StringComparison.OrdinalIgnoreCase) >= 0
+                ? "合成数据" : value;
+
+        private static string FriendlyBackend(string value) =>
+            string.Equals(value, "cuda", StringComparison.OrdinalIgnoreCase) ? "GPU" :
+            string.Equals(value, "cpu", StringComparison.OrdinalIgnoreCase) ? "CPU" : value;
 
         private static string DefaultRunDirectory()
         {

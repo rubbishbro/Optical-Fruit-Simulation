@@ -2,13 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-if [[ -n "${PYTHON_BIN:-}" ]]; then
-  python_bin="${PYTHON_BIN}"
-elif [[ -x "/home/rubbishbro/miniforge3/envs/mamba-torch311/bin/python" ]]; then
-  python_bin="/home/rubbishbro/miniforge3/envs/mamba-torch311/bin/python"
-else
-  python_bin="python"
-fi
+python_bin="${PYTHON_BIN:-python3}"
 export PYTHON_BIN="${python_bin}"
 
 mkdir -p "${repo_root}/.cache/matplotlib"
@@ -20,6 +14,7 @@ if [[ -d "${repo_root}/build-mesh" ]]; then
 fi
 
 "${python_bin}" -m unittest discover -s "${repo_root}/python/tests" -v
-"${repo_root}/scripts/run_student_demo.sh" --output-root "${repo_root}/results/stage_acceptance"
+"${repo_root}/scripts/run_student_demo.sh" \
+  --output-root "${repo_root}/results/runs" --run-prefix stage_acceptance
 
-echo "Stage acceptance completed. Inspect results/stage_acceptance/*/qa/audit_report.json."
+echo "Stage acceptance completed. Inspect results/runs/stage_acceptance_*/qa/audit_report.json."

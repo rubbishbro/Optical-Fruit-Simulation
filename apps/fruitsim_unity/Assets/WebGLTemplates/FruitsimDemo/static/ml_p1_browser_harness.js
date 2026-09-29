@@ -33,13 +33,44 @@
     const pass = (name) => results.push({ name, pass: true });
     const runCheck = (name, fn) => { fn(); pass(name); };
 
+    phase = 'narrative-spine';
+    runCheck('analysis mode exposes the data contract bar', () => {
+      const bar = document.querySelector('#ml-contract-bar');
+      check(bar && !bar.hidden, 'contract bar is hidden in analysis mode');
+      check(bar.textContent.includes('输入') && bar.textContent.includes('输出'), 'contract bar is missing input/output cells');
+      check(bar.querySelectorAll('.ml-contract-cell').length === 2, 'contract bar must show exactly input and output cells');
+      check(bar.textContent.includes('🟦') || bar.textContent.includes('🟨') || bar.textContent.includes('🟩'), 'contract bar is missing the type badge');
+    });
+    runCheck('stage navigation is a progress track with dimensions', () => {
+      const current = document.querySelector('#ml-stage-tabs button[data-stage-state="current"]');
+      check(current, 'progress track has no current node');
+      check(/\d+ × \d+|指标/.test(current.querySelector('.stage-node-dim').textContent), 'current node is missing a data dimension label');
+      check(document.querySelectorAll('#ml-stage-tabs button.done, #ml-stage-tabs button.todo').length >= 1, 'progress track has no completed/upcoming states');
+    });
+    runCheck('protagonist sample card is visible and switchable', () => {
+      const card = document.querySelector('#ml-sample-card');
+      check(card && card.textContent.includes('样本 #') && card.textContent.includes('合成糖度代理值'), 'sample protagonist card is missing');
+      const before = state.selectedSampleId;
+      card.querySelector('#ml-change-sample').click();
+      check(state.selectedSampleId !== before, '换主角 did not change the tracked sample');
+    });
+    runCheck('source provenance note is honest about offline generation', () => {
+      const note = document.querySelector('#ml-source-note');
+      check(note && note.textContent.includes('合成教学数据') && note.textContent.includes('并非由当前光学仿真实时生成'), 'source provenance note is missing or dishonest');
+    });
+    runCheck('chapter timeline is chapter-oriented', () => {
+      const label = document.querySelector('#ml-chapter-label');
+      check(/章节 \d+\/5/.test(label.textContent), `chapter label was ${label.textContent}`);
+      check(document.querySelectorAll('#ml-chapter-segments .ml-chapter-seg').length === 5, 'chapter track must have five segments');
+    });
+
     phase = 'teaching-mode-entry';
     document.querySelector('#ml-teaching-mode').click();
     await waitFor(() => !document.querySelector('#ml-teaching-scene').hidden && document.querySelector('.teaching-scene-contract'));
     runCheck('teaching mode exposes the TeachingScene contract', () => {
       check(document.querySelector('#page-ml').classList.contains('teaching-mode'), 'teaching mode class is missing');
-      check(document.querySelector('.teaching-scene-contract').textContent.includes('输入 Input'), 'input object badge is missing');
-      check(document.querySelector('.teaching-scene-contract').textContent.includes('输出 Output'), 'output object badge is missing');
+      check(document.querySelector('.teaching-scene-contract').textContent.includes('输入'), 'input object badge is missing');
+      check(document.querySelector('.teaching-scene-contract').textContent.includes('输出'), 'output object badge is missing');
       check(document.querySelector('#ml-teaching-pipeline .teaching-pipeline button.active'), 'teaching pipeline has no active node');
       check(document.querySelector('.teaching-svg'), 'teaching SVG is missing');
     });
@@ -48,7 +79,7 @@
     phase = 'select-comparison';
     stageButton('preprocessing').click();
     const comparison = document.querySelector('#ml-stage-controls select');
-    const snv = Array.from(comparison.options).find((option) => option.textContent.startsWith('snv '));
+    const snv = Array.from(comparison.options).find((option) => option.textContent.includes('SNV'));
     check(snv, 'SNV comparison option is unavailable');
     comparison.value = snv.value;
     dispatchChange(comparison);
@@ -58,12 +89,12 @@
       check(state.animation.steps[0].state === state.bundle.stages.preprocessing.comparisons.find((item) => item.stage_run_id === snv.value).states[0], 'SNV teaching source is not selected comparison');
       check(document.querySelector('#ml-chart-error').hidden, 'preprocessing highlight_sample raised chart error');
       check(state.animation.steps.some((item) => item.event === 'show_centered'), 'SNV teaching steps omit centered spectrum');
-      check(document.querySelector('.teaching-scene-contract').textContent.includes('SpectrumSet'), 'SNV object badge is missing');
+      check(document.querySelector('.teaching-scene-contract').textContent.includes('光谱矩阵'), 'SNV object badge is missing');
       check(document.querySelector('.teaching-selected-wavelength'), 'selected wavelength is not highlighted in teaching SVG');
     });
     debug.pauseAnimation();
 
-    const sg15 = Array.from(comparison.options).find((option) => option.textContent.includes('sg15') && !option.textContent.includes('snv-after'));
+    const sg15 = Array.from(comparison.options).find((option) => option.textContent.includes('平滑（窗口 15）') && !option.textContent.includes('SNV'));
     check(sg15, 'SG15 comparison option is unavailable');
     comparison.value = sg15.value;
     dispatchChange(comparison);
@@ -93,7 +124,7 @@
     debug.setStageByRunId('feature-analysis-pca'); state.animation.index = 0; debug.render();
     runCheck('PCA teaching has matrix-to-score steps', () => {
       check(state.animation.steps.map((item) => item.event).join(',') === 'show_matrix,center_matrix,project_points', 'PCA teaching event sequence is incomplete');
-      check(document.querySelector('.teaching-scene').textContent.includes('diagnostic branch'), 'PCA diagnostic branch annotation is missing');
+      check(document.querySelector('.teaching-scene').textContent.includes('诊断分支'), 'PCA diagnostic branch annotation is missing');
     });
     document.querySelector('#ml-analysis-mode').click();
 

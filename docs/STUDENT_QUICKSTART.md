@@ -19,7 +19,7 @@ bash scripts/run_student_demo.sh
 64 光子冒烟测试中探测器命中过少、课堂折线图退化为单点尖峰。只做快速连通性检查时
 可以显式传入 `--photons 64`，但不应把该低统计结果用于讲解波长趋势。
 
-结果位于 `results/student_demo/`。先打开每个 Run 的：
+结果位于 `results/runs/student_*`。先打开每个 Run 的：
 
 ```text
 qa/audit_report.json

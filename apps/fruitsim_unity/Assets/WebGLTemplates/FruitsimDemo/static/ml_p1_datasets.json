@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "source_type": "SYNTHETIC_TEACHING",
+  "synthetic": true,
+  "warning": "All five datasets are simulated teaching examples, not experimental measurements.",
+  "datasets": [
+    {
+      "dataset_id": "synthetic_teaching_clean_signal_v1",
+      "name": "合成数据 A · 清晰信号",
+      "description": "信号较清晰、噪声较低，作为基础教学对照。",
+      "profile": "clean_signal",
+      "source_type": "SYNTHETIC_TEACHING",
+      "synthetic": true,
+      "sample_count": 128,
+      "feature_count": 61,
+      "bundle_url": "static/ml_datasets/clean_signal/ml_p1_bundle.json"
+    },
+    {
+      "dataset_id": "synthetic_teaching_baseline_shift_v1",
+      "name": "合成数据 B · 基线与尺度偏移",
+      "description": "样本具有更强基线和幅度差异，可观察 SNV 的作用。",
+      "profile": "baseline_shift",
+      "source_type": "SYNTHETIC_TEACHING",
+      "synthetic": true,
+      "sample_count": 128,
+      "feature_count": 61,
+      "bundle_url": "static/ml_datasets/baseline_shift/ml_p1_bundle.json"
+    },
+    {
+      "dataset_id": "synthetic_teaching_broad_bands_v1",
+      "name": "合成数据 C · 宽波段重叠",
+      "description": "目标相关谱带更宽且相互重叠，可观察特征冗余。",
+      "profile": "broad_bands",
+      "source_type": "SYNTHETIC_TEACHING",
+      "synthetic": true,
+      "sample_count": 128,
+      "feature_count": 61,
+      "bundle_url": "static/ml_datasets/broad_bands/ml_p1_bundle.json"
+    },
+    {
+      "dataset_id": "synthetic_teaching_noisy_spectra_v1",
+      "name": "合成数据 D · 高噪声与异常点",
+      "description": "包含较强测量噪声和少量局部尖峰。",
+      "profile": "noisy_spectra",
+      "source_type": "SYNTHETIC_TEACHING",
+      "synthetic": true,
+      "sample_count": 128,
+      "feature_count": 61,
+      "bundle_url": "static/ml_datasets/noisy_spectra/ml_p1_bundle.json"
+    },
+    {
+      "dataset_id": "synthetic_teaching_batch_shift_v1",
+      "name": "合成数据 E · 批次偏移",
+      "description": "批次间存在明显系统偏移，用于观察分组结构和泛化风险。",
+      "profile": "batch_shift",
+      "source_type": "SYNTHETIC_TEACHING",
+      "synthetic": true,
+      "sample_count": 128,
+      "feature_count": 61,
+      "bundle_url": "static/ml_datasets/batch_shift/ml_p1_bundle.json"
+    }
+  ]
+}

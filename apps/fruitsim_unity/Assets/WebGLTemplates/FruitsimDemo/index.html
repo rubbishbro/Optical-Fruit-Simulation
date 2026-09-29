@@ -109,150 +109,157 @@
 <body>
   <header>
     <div class="brand"><h1>Fruitsim 实验台</h1><p>果实组织光传输 · 数据处理 · 机器学习</p></div>
-    <nav aria-label="主页面"><button class="active" data-page="simulation">光学仿真</button><button data-page="figures">结果图像</button><button data-page="ml">ML 链路</button><button data-page="run">运行与审计</button></nav>
-    <span id="connection" class="connection">GATEWAY OFFLINE</span>
+    <nav aria-label="主页面"><button class="active" data-page="simulation">光学仿真</button><button data-page="figures">结果图表</button><button data-page="ml">数据分析</button><button data-page="run">运行状态</button></nav>
+    <span id="connection" class="connection">服务未连接</span>
   </header>
   <main>
     <section id="page-simulation" class="view active">
-      <div class="view-title"><div><h2>三维光学装置</h2><p>Blender 几何 + Unity WebGL 交互光路；拖动旋转，滚轮缩放。</p></div><span id="unity-state" class="tag">UNITY LOADING</span></div>
+      <div class="view-title"><div><h2>三维光学装置</h2><p>环形光源照射果实，探测器接收出射光；拖动旋转，滚轮缩放。</p></div><span id="unity-state" class="tag">载入中</span></div>
       <div class="sim-grid">
         <div class="sheet viewer">
-          <div class="viewer-bar"><strong>Ring illumination / detector geometry</strong><button id="zoom-in" class="small-button">放大</button><button id="zoom-out" class="small-button">缩小</button><button id="reset-view" class="small-button">复位视角</button><button id="fullscreen" class="small-button">全屏</button></div>
+          <div class="viewer-bar"><strong>环形光照与探测器</strong><button id="zoom-in" class="small-button">放大</button><button id="zoom-out" class="small-button">缩小</button><button id="reset-view" class="small-button">复位视角</button><button id="fullscreen" class="small-button">全屏</button></div>
           <div id="unity-container"><div id="loading"><span>正在载入 Unity WebGL 仪器模型</span><div id="progress"><div></div></div></div><canvas id="unity-canvas" tabindex="-1" aria-label="可旋转缩放的 Unity 光学仿真"></canvas></div>
         </div>
         <aside class="sheet params">
           <h3>仿真参数</h3>
           <div class="param-row"><label for="wavelength">波长</label><input id="wavelength" type="number" value="700" min="400" max="1100"><span>nm</span></div>
-          <div class="param-row"><label>环形光源数量</label><input value="12" disabled><span>个</span></div>
-          <div class="param-row"><label for="ring-radius">灯环半径 / 果实半径</label><input id="ring-radius" type="number" value="1.08" min="0.5" max="1.5" step="0.01"><span>ratio</span></div>
-          <div class="param-row"><label for="ring-height">灯环高度 / 果实高度</label><input id="ring-height" type="number" value="-0.28" min="-1" max="0.25" step="0.01"><span>ratio</span></div>
-          <div class="param-row"><label for="incident-angle">光源倾角</label><input id="incident-angle" type="number" value="35" min="0" max="89"><span>deg</span></div>
-          <div class="param-row"><label for="divergence">光束发散半角</label><input id="divergence" type="number" value="12" min="0" max="90"><span>deg</span></div>
-          <div class="param-row"><label for="optical-power">总相对光功率</label><input id="optical-power" type="number" value="1" min="0" max="10" step="0.1"><span>a.u.</span></div>
-          <div class="param-row"><label for="sensor-radius">探测器半径 / 果实半径</label><input id="sensor-radius" type="number" value="0.35" min="0.01" max="0.5" step="0.01"><span>ratio</span></div>
-          <div class="param-row"><label for="sensor-offset">探测器偏移 / 果实高度</label><input id="sensor-offset" type="number" value="0.18" min="0.01" max="0.75" step="0.01"><span>ratio</span></div>
-          <div class="param-row"><label for="sensor-fov">探测器视场角</label><input id="sensor-fov" type="number" value="70" min="1" max="180"><span>deg</span></div>
+          <div class="param-row"><label for="light-count">环形光源数量</label><input id="light-count" type="number" value="12" min="1" max="64" step="1"><span>个</span></div>
+          <div class="param-row"><label for="ring-radius">灯环半径 / 果实半径</label><input id="ring-radius" type="number" value="1.08" min="0.5" max="1.5" step="0.01"><span>倍</span></div>
+          <div class="param-row"><label for="ring-height">灯环高度 / 果实高度</label><input id="ring-height" type="number" value="-0.28" min="-1" max="0.25" step="0.01"><span>倍</span></div>
+          <div class="param-row"><label for="incident-angle">光源倾角</label><input id="incident-angle" type="number" value="35" min="0" max="89"><span>°</span></div>
+          <div class="param-row"><label for="divergence">光束发散半角</label><input id="divergence" type="number" value="12" min="0" max="90"><span>°</span></div>
+          <div class="param-row"><label for="optical-power">相对光功率</label><input id="optical-power" type="number" value="1" min="0" max="10" step="0.1"><span>倍</span></div>
+          <div class="param-row"><label for="sensor-radius">探测器半径 / 果实半径</label><input id="sensor-radius" type="number" value="0.35" min="0.01" max="0.5" step="0.01"><span>倍</span></div>
+          <div class="param-row"><label for="sensor-offset">探测器偏移 / 果实高度</label><input id="sensor-offset" type="number" value="0.18" min="0.01" max="0.75" step="0.01"><span>倍</span></div>
+          <div class="param-row"><label for="sensor-fov">探测器视场角</label><input id="sensor-fov" type="number" value="70" min="1" max="180"><span>°</span></div>
           <div class="param-row check"><label for="show-rays">显示方向光线</label><input id="show-rays" type="checkbox" checked></div>
           <button id="apply-optics" class="primary">应用参数到 Unity</button>
-          <p id="parameter-status" class="note">参数尚未修改。780–1100 nm 在显示器上以暗红伪彩表示。</p>
+          <p id="parameter-status" class="note">780–1100 nm 在显示器上以暗红色显示；颜色仅用于区分波段。</p>
           <details class="apple-generator" open>
-            <summary>Unity Apple Generator · P1</summary>
-            <p class="note">生成对象使用稳定 sample_id。物理参数只作为 metadata 保存，不自动改变可见材质。</p>
+            <summary>生成果实样本</summary>
+            <p class="note">外观参数控制模型形状和材质；光学参数作为样本记录保存，不会自动改变外观。</p>
             <div class="apple-form-grid">
-              <label>Seed<input id="apple-seed" type="number" value="20260920"></label>
-              <label>Batch count<input id="apple-batch-count" type="number" value="1" min="1" max="32"></label>
-              <label>Scale<input id="apple-scale" type="number" value="1" min="0.01" step="0.01"></label>
-              <label>Height ratio<input id="apple-height-ratio" type="number" value="1" step="0.01"></label>
-              <label>Crown ratio<input id="apple-crown-ratio" type="number" value="0.08" step="0.01"></label>
-              <label>Asymmetry<input id="apple-asymmetry" type="number" value="0" step="0.01"></label>
-              <label>Color<input id="apple-color" type="color" value="#7a0906"></label>
-              <label>Roughness<input id="apple-roughness" type="number" value="0.68" min="0" max="1" step="0.01"></label>
-              <label>Spot density<input id="apple-spot-density" type="number" value="0.12" min="0" max="1" step="0.01"></label>
-              <label>Normal strength<input id="apple-normal-strength" type="number" value="0.12" min="0" max="1" step="0.01"></label>
-              <label>SSC / °Brix<input id="apple-ssc" type="number" value="12.5" step="0.1"></label>
-              <label>Water content<input id="apple-water" type="number" value="0.74" step="0.01"></label>
-              <label>Absorption scale<input id="apple-absorption" type="number" value="1" step="0.01"></label>
-              <label>Scattering scale<input id="apple-scattering" type="number" value="1" step="0.01"></label>
-              <label>Refractive index<input id="apple-ri" type="number" value="1.36" step="0.01"></label>
-              <label>Position x<input id="apple-pos-x" type="number" value="0" step="0.05"></label>
-              <label>Position y<input id="apple-pos-y" type="number" value="0" step="0.05"></label>
-              <label>Position z<input id="apple-pos-z" type="number" value="0" step="0.05"></label>
+              <label>随机种子<input id="apple-seed" type="number" value="20260920"></label>
+              <label>生成数量<input id="apple-batch-count" type="number" value="1" min="1" max="32"></label>
+              <label>整体大小<input id="apple-scale" type="number" value="1" min="0.01" step="0.01"></label>
+              <label>高宽比例<input id="apple-height-ratio" type="number" value="1" step="0.01"></label>
+              <label>顶部凹凸<input id="apple-crown-ratio" type="number" value="0.08" step="0.01"></label>
+              <label>形状不对称度<input id="apple-asymmetry" type="number" value="0" step="0.01"></label>
+              <label>颜色<input id="apple-color" type="color" value="#940603"></label>
+              <label>表面粗糙度<input id="apple-roughness" type="number" value="0.46" min="0" max="1" step="0.01"></label>
+              <label>金属感<input id="apple-metallic" type="number" value="0" min="0" max="1" step="0.01"></label>
+              <label>表面反射<input id="apple-specular-ior" type="number" value="0.5" min="0" max="1" step="0.01"></label>
+              <label>外观折射率<input id="apple-ior" type="number" value="1.45" min="1" max="3" step="0.01"></label>
+              <label>斑点密度<input id="apple-spot-density" type="number" value="0.06" min="0" max="1" step="0.01"></label>
+              <label>表面纹理强度<input id="apple-normal-strength" type="number" value="0.025" min="0" max="1" step="0.005"></label>
+              <label>表皮透光度<input id="apple-skin-transmission" type="number" value="0.16" min="0" max="1" step="0.01"></label>
+              <label>糖度 / °Brix<input id="apple-ssc" type="number" value="12.5" step="0.1"></label>
+              <label>含水率<input id="apple-water" type="number" value="0.74" step="0.01"></label>
+              <label>吸收系数比例<input id="apple-absorption" type="number" value="1" step="0.01"></label>
+              <label>散射系数比例<input id="apple-scattering" type="number" value="1" step="0.01"></label>
+              <label>组织折射率<input id="apple-ri" type="number" value="1.36" step="0.01"></label>
+              <label>位置 X<input id="apple-pos-x" type="number" value="0" step="0.05"></label>
+              <label>位置 Y<input id="apple-pos-y" type="number" value="0" step="0.05"></label>
+              <label>位置 Z<input id="apple-pos-z" type="number" value="0" step="0.05"></label>
             </div>
-            <div class="button-row"><button id="generate-apple" class="primary">Generate Apple</button><button id="generate-batch">Generate Batch</button><button id="clear-apples">Clear generated</button></div>
-            <p id="apple-status" class="note">Unity generator waiting.</p>
-            <code id="apple-sample-id" class="apple-sample-id">sample_id: -</code>
+            <div class="button-row"><button id="generate-apple" class="primary">生成一个</button><button id="generate-batch">批量生成</button><button id="clear-apples">清除样本</button></div>
+            <p id="apple-status" class="note">等待生成样本。</p>
+            <code id="apple-sample-id" class="apple-sample-id">样本编号：-</code>
           </details>
         </aside>
       </div>
     </section>
     <section id="page-figures" class="view">
-      <div class="view-title"><div><h2>仿真与数据图像</h2><p>图像来自项目内已生成的物理仿真与合成数据 Run，可在左侧直接切换。</p></div><span class="tag">SOURCE-BACKED FIGURES</span></div>
+      <div class="view-title"><div><h2>仿真与数据图表</h2><p>选择图表查看光传输模拟和合成光谱数据。</p></div></div>
       <div class="figure-grid"><aside id="figure-menu" class="sheet figure-menu" aria-label="图像选择"></aside><article class="sheet figure-stage"><h3 id="figure-title"></h3><p id="figure-note"></p><img id="figure-image" alt="Fruitsim 仿真结果图"></article></div>
-      <div class="boundary">说明：吸收热力图和光子路径图用于解释模拟机制；它们不是苹果内部真实成像结果。数值结果需结合 Run manifest、能量审计和参数配置解读。</div>
+      <div class="boundary">光子路径与吸收分布来自数值模拟，不是果实内部的真实成像。合成光谱仅用于演示分析方法。</div>
     </section>
     <section id="page-ml" class="view">
-      <div class="view-title"><div><h2>ML 实验讲解台</h2><p>按 StageRun 读取已经完成的实验；图、解释与教学步骤来自同一份结构化结果。</p></div><span id="ml-source-tag" class="tag">LOADING P1 BUNDLE</span></div>
+      <div class="view-title"><div><h2>光谱数据分析</h2><p>比较五种合成光谱数据，沿同一条分析流程观察预处理、选波长和预测结果。</p></div><span id="ml-source-tag" class="tag">合成数据</span></div>
+      <div id="ml-source-note" class="ml-source-note" role="note"></div>
       <article class="sheet ml-p1-toolbar">
-        <label>实验 / Experiment <select id="ml-experiment-select" aria-label="选择实验"></select></label>
-        <label>样本 / Selected sample <select id="ml-sample-select" aria-label="选择样本"></select></label>
-        <label>波长 / Selected wavelength <select id="ml-feature-select" aria-label="选择波长"></select></label>
-        <div id="ml-mode-switch" class="ml-mode-switch" aria-label="显示模式"><button id="ml-analysis-mode" class="active"><strong>分析模式</strong><small>Analysis</small></button><button id="ml-teaching-mode"><strong>教学模式</strong><small>Teaching</small></button></div>
-        <button id="ml-play-pipeline" class="primary ml-toolbar-button">▶ 播放全链路 <small>Play Pipeline</small></button>
-        <span id="ml-play-status" class="ml-status">ready</span>
+        <div id="ml-sample-card" class="ml-sample-card" aria-live="polite"></div>
+        <label>合成数据集 <select id="ml-dataset-select" aria-label="选择合成数据集"></select></label>
+        <span id="ml-dataset-description" class="ml-dataset-description">全部示例均为合成数据。</span>
+        <div class="ml-random-sample-wrap"><span>随机高亮样本</span><strong id="ml-random-sample">-</strong></div>
+        <label>观察波长 <select id="ml-feature-select" aria-label="选择观察波长"></select></label>
+        <div id="ml-mode-switch" class="ml-mode-switch" aria-label="显示模式"><button id="ml-analysis-mode" class="active"><strong>图表</strong></button><button id="ml-teaching-mode"><strong>讲解</strong></button></div>
+        <button id="ml-play-pipeline" class="primary ml-toolbar-button">▶ 播放分析流程</button>
+        <span id="ml-play-status" class="ml-status">就绪</span>
       </article>
       <div id="ml-teaching-pipeline" class="ml-teaching-pipeline-wrap" hidden></div>
-      <article class="sheet ml-p1-shell" data-legacy-summary="static/ml_workflow_summary.json">
+      <article class="sheet ml-p1-shell">
         <div id="ml-stage-tabs" class="stage-tabs" aria-label="ML 阶段页面"></div>
-        <div class="ml-stage-meta">
-          <div><span>实验 / Experiment ID</span><code id="ml-experiment-id">-</code></div>
-          <div><span>数据集 / Dataset</span><code id="ml-dataset-id">-</code></div>
-          <div><span>阶段运行 / StageRun</span><code id="ml-stage-run-id">-</code></div>
-          <div><span>调用 / Invocation</span><code id="ml-invocation-id">-</code></div>
-          <div><span>输入引用 / Input ref</span><code id="ml-input-ref">-</code></div>
-          <div><span>来源 / Source</span><code id="ml-source-type">-</code></div>
-        </div>
+        <div id="ml-contract-bar" class="ml-contract-bar" aria-label="数据契约"></div>
         <div class="ml-p1-grid">
           <aside class="ml-explanation">
-            <h3>教学讲解 <small>Explanation</small></h3>
-            <section><h4>这一步看什么？ <small>What</small></h4><p id="ml-what">正在读取结构化实验。</p></section>
-            <section><h4>为什么？ <small>Why</small></h4><p id="ml-why">-</p></section>
-            <section><h4>如何处理？ <small>How</small></h4><p id="ml-how">-</p></section>
-            <section><h4>如何读图？ <small>How to read</small></h4><p id="ml-read">-</p></section>
-            <section><h4>真实结果发生了什么？ <small>What happened</small></h4><p id="ml-happened">-</p></section>
-            <section><h4>保守解释 <small>Interpretation</small></h4><p id="ml-interpretation">-</p></section>
+            <h3>本步说明</h3>
+            <section><h4>处理内容</h4><p id="ml-what">正在载入数据。</p></section>
+            <section><h4>方法</h4><p id="ml-how">-</p></section>
+            <section><h4>图表怎么看</h4><p id="ml-read">-</p></section>
+            <section><h4>本次结果</h4><p id="ml-happened">-</p></section>
+            <section><h4>适用范围</h4><p id="ml-interpretation">-</p></section>
           </aside>
           <section class="ml-evidence">
-            <div class="ml-evidence-head"><div><h3 id="ml-stage-title">Stage</h3><p id="ml-stage-subtitle">真实 StageRun 证据</p></div><div id="ml-stage-switches" class="ml-switches"></div></div>
+            <div class="ml-evidence-head"><div><h3 id="ml-stage-title">数据</h3><p id="ml-stage-subtitle"></p></div><div id="ml-stage-switches" class="ml-switches"></div></div>
             <div class="ml-chart-frame"><canvas id="ml-chart" width="980" height="520" aria-label="ML 分析图表"></canvas><div id="ml-teaching-scene" class="ml-teaching-scene-host" hidden></div><div id="ml-chart-error" class="ml-chart-error" hidden></div></div>
             <div id="ml-legend" class="ml-legend"></div>
             <div id="ml-stage-controls" class="ml-stage-controls"></div>
           </section>
         </div>
         <div class="ml-animation-bar">
-          <button id="ml-restart">↺ 重启 <small>Restart</small></button><button id="ml-previous">◀ 上一步 <small>Previous</small></button><button id="ml-next">下一步 ▶ <small>Next</small></button><button id="ml-pause">Ⅱ 暂停 <small>Pause</small></button>
-          <input id="ml-timeline" type="range" min="0" max="0" value="0" aria-label="教学时间线"><span id="ml-timeline-label">Step 0 / 0</span>
-          <span id="ml-event-label" class="ml-event-label">event: -</span>
+          <button id="ml-restart">↺ 重播</button><button id="ml-previous">◀ 上一步</button><button id="ml-next">下一步 ▶</button><button id="ml-pause">Ⅱ 暂停</button>
+          <input id="ml-timeline" type="range" min="0" max="0" value="0" aria-label="讲解进度"><span id="ml-timeline-label">步骤 0 / 0</span>
+          <span id="ml-event-label" class="ml-event-label">当前步骤：-</span>
         </div>
-        <div id="ml-event-narration" class="ml-event-narration">选择一个 Stage 查看教学步骤。动画只播放已有 IntermediateState，不重新计算。</div>
+        <div id="ml-chapter-bar" class="ml-chapter-bar" aria-label="讲解章节">
+          <div id="ml-chapter-segments" class="ml-chapter-segments"></div>
+          <span id="ml-chapter-label" class="ml-chapter-label">-</span>
+        </div>
+        <div id="ml-event-narration" class="ml-event-narration">播放讲解，逐步查看光谱处理和模型预测。</div>
       </article>
       <section id="ml-results-overview" class="ml-results-overview"></section>
-      <div class="ml-reference-contract" data-reference-figure="static/ml_prediction_scatter.png">Static validation figure remains available as a reference asset; interactive charts above use the same ExperimentRun data.</div>
-      <div class="boundary">数据边界：当前前台示例来自合成教学 Run。CARS 的 RMSECV 标注为 internal selection heuristic，不等价于 nested-CV 无偏泛化性能。</div>
+      <div class="boundary">五组数据均为合成示例，不代表真实苹果测量。PCA 用于观察数据结构；CARS 的交叉验证误差用于筛选波长，不是独立泛化误差。模型指标仅说明当前合成数据上的结果。</div>
+      <div id="ml-toast" class="ml-toast" hidden></div>
     </section>
     <section id="page-run" class="view">
-      <div class="view-title"><div><h2>运行与审计</h2><p>启动可重复 Run，观察命令确认、状态推进和事件重放。</p></div><span class="tag">PROTOCOL v1</span></div>
-      <div class="run-grid"><div class="sheet run-controls"><div class="form-row"><label for="run-id">Run ID</label><input id="run-id" value="web_demo_seed20260920"></div><div class="form-row"><label for="seed">随机种子</label><input id="seed" type="number" value="20260920"></div><div class="form-row"><label for="samples">样本数量</label><select id="samples"><option value="60">60 · 快速</option><option value="120" selected>120 · 标准</option><option value="300">300 · 讲解</option></select></div><div class="form-row"><label for="gateway-port">Gateway 端口</label><input id="gateway-port" type="number" value="8765"></div><div class="button-row"><button id="connect-btn">连接 Gateway</button><button id="start-btn" class="run">生成 Demo Run</button></div><div class="button-row"><button id="cancel-btn">请求取消</button><button id="replay-btn">重放事件</button></div><p class="note">运行数据写入服务器端 Run 目录；浏览器只显示状态和经过审计的结果入口。</p></div><div class="sheet run-log"><div class="status-table"><div><span>Gateway</span><strong id="gateway-state">offline</strong></div><div><span>Sequence</span><strong id="last-seq">0</strong></div><div><span>State</span><strong id="run-state">idle</strong></div><div><span>Stage</span><strong id="run-stage">-</strong></div><div><span>Run path</span><strong id="run-path">-</strong></div></div><div id="event-log">Waiting for Gateway…</div></div></div>
+      <div class="view-title"><div><h2>运行状态</h2><p>生成可重复的演示数据，并查看计算进度。</p></div></div>
+      <div class="run-grid"><div class="sheet run-controls"><div class="form-row"><label for="run-id">任务名称</label><input id="run-id" value="web_demo_seed20260920"></div><div class="form-row"><label for="seed">随机种子</label><input id="seed" type="number" value="20260920"></div><div class="form-row"><label for="samples">样本数量</label><select id="samples"><option value="60">60 · 快速</option><option value="120" selected>120 · 标准</option><option value="300">300 · 详细</option></select></div><input id="gateway-port" type="hidden" value="8765"><div class="button-row"><button id="connect-btn">连接计算服务</button><button id="start-btn" class="run">开始计算</button></div><div class="button-row"><button id="cancel-btn">取消任务</button><button id="replay-btn">查看运行记录</button></div><p class="note">运行结果会保存在项目的结果目录中，可在图表页面查看。</p></div><div class="sheet run-log"><div class="status-table"><div><span>计算服务</span><strong id="gateway-state">未连接</strong></div><div><span>记录数</span><strong id="last-seq">0</strong></div><div><span>状态</span><strong id="run-state">待机</strong></div><div><span>当前步骤</span><strong id="run-stage">-</strong></div><div class="run-path-status"><span>结果位置</span><strong id="run-path">-</strong></div></div><div id="event-log">尚无运行记录。</div></div></div>
     </section>
   </main>
   <script>
     const canvas=document.querySelector('#unity-canvas'),connection=document.querySelector('#connection'),gatewayState=document.querySelector('#gateway-state'),logBox=document.querySelector('#event-log'),unityState=document.querySelector('#unity-state');
     let gateway=null,lastSeq=0,unityInstance=null;
     document.querySelectorAll('nav button').forEach(button=>button.onclick=()=>{document.querySelectorAll('nav button').forEach(item=>item.classList.toggle('active',item===button));document.querySelectorAll('.view').forEach(view=>view.classList.toggle('active',view.id===`page-${button.dataset.page}`));if(button.dataset.page==='simulation'&&unityInstance)setTimeout(()=>window.dispatchEvent(new Event('resize')),0);});
-    const figures=[['吸收分布热力图','static/absorption_heatmap.png','组织截面内的归一化吸收沉积分布；颜色表示相对强度。'],['加权光子路径','static/photon_paths.png','蒙特卡洛光子在果实组织中的加权轨迹与终止位置。'],['样本 × 波长热力图','static/spectra_heatmap.png','32 个合成样本、51 个波长点的反射率矩阵。'],['代表性光谱','static/spectra_overview.png','抽样光谱曲线与总体均值，用于观察波段形态。'],['PCA 散点图','static/pca_scatter.png','光谱标准化后的前两个主成分；颜色为合成 SSC proxy。'],['波长相关热力图','static/proxy_correlation_heatmap.png','各波长与合成 SSC proxy 的 Pearson 相关系数。'],['探测器响应谱','static/detector_spectrum.png','探测反射率与有效光子计数，避免只看平滑曲线而忽略采样支持。'],['探测深度统计','static/detector_path_statistics.png','有效光子的平均穿透深度与果肉路径比例。'],['能量守恒审计','static/energy_audit.png','检查 1 − R − T − A − discarded 的数值残差。']];
+    const figures=[['吸收分布','static/absorption_heatmap.png','截面内的吸收能量分布；颜色表示相对强度。'],['光子传播路径','static/photon_paths.png','模拟光子在果皮和果肉中的传播轨迹。'],['样本 × 波长反射率','static/spectra_heatmap.png','查看不同样本的反射率如何随波长变化。'],['代表性光谱','static/spectra_overview.png','多条样本光谱与平均曲线。'],['PCA 样本分布','static/pca_scatter.png','将光谱投影到前两个主成分；颜色表示合成糖度代理值。'],['波长与糖度关系','static/proxy_correlation_heatmap.png','各波长反射率与合成糖度代理值的相关性，不代表因果关系。'],['探测器响应','static/detector_spectrum.png','探测器接收的反射信号与有效光子数。'],['探测深度','static/detector_path_statistics.png','有效光子的平均穿透深度及果肉内传播比例。'],['能量守恒检查','static/energy_audit.png','比较入射能量与反射、透射、吸收及损失能量之和。']];
     const figureMenu=document.querySelector('#figure-menu');
     function showFigure(index){const[title,src,note]=figures[index];document.querySelector('#figure-title').textContent=title;document.querySelector('#figure-note').textContent=note;document.querySelector('#figure-image').src=src;document.querySelectorAll('#figure-menu button').forEach((button,i)=>button.classList.toggle('active',i===index));}
     figures.forEach((figure,index)=>{const button=document.createElement('button');button.textContent=`${String(index+1).padStart(2,'0')}  ${figure[0]}`;button.onclick=()=>showFigure(index);figureMenu.appendChild(button);});showFigure(0);
     function sendUnity(objectName,method,value){if(!unityInstance)return false;if(value===undefined)unityInstance.SendMessage(objectName,method);else unityInstance.SendMessage(objectName,method,value);return true;}
-    function numberValue(id){return Number(document.querySelector(`#${id}`).value)||0;}
+    function numberValue(id){const value=Number(document.querySelector(`#${id}`).value);return Number.isFinite(value)?value:0;}
     function appleColor(){const value=document.querySelector('#apple-color').value.replace('#','');const rgb=parseInt(value,16);return{r:((rgb>>16)&255)/255,g:((rgb>>8)&255)/255,b:(rgb&255)/255,a:1};}
-    function applePayload(seed){return{seed:seed===undefined?numberValue('apple-seed'):seed,geometry:{scale:numberValue('apple-scale'),heightRatio:numberValue('apple-height-ratio'),crownRatio:numberValue('apple-crown-ratio'),asymmetry:numberValue('apple-asymmetry')},visualMaterial:{color:appleColor(),roughness:numberValue('apple-roughness'),spotDensity:numberValue('apple-spot-density'),normalStrength:numberValue('apple-normal-strength')},physical:{sscBrix:numberValue('apple-ssc'),waterContent:numberValue('apple-water'),absorptionScale:numberValue('apple-absorption'),reducedScatteringScale:numberValue('apple-scattering'),refractiveIndex:numberValue('apple-ri')},pose:{position:{x:numberValue('apple-pos-x'),y:numberValue('apple-pos-y'),z:numberValue('apple-pos-z')},eulerAngles:{x:0,y:0,z:0}}};}
+    function applePayload(seed){return{seed:seed===undefined?numberValue('apple-seed'):seed,geometry:{scale:numberValue('apple-scale'),heightRatio:numberValue('apple-height-ratio'),crownRatio:numberValue('apple-crown-ratio'),asymmetry:numberValue('apple-asymmetry')},visualMaterial:{color:appleColor(),roughness:numberValue('apple-roughness'),metallic:numberValue('apple-metallic'),specularIORLevel:numberValue('apple-specular-ior'),ior:numberValue('apple-ior'),spotDensity:numberValue('apple-spot-density'),normalStrength:numberValue('apple-normal-strength'),skinTransmission:numberValue('apple-skin-transmission')},physical:{sscBrix:numberValue('apple-ssc'),waterContent:numberValue('apple-water'),absorptionScale:numberValue('apple-absorption'),reducedScatteringScale:numberValue('apple-scattering'),refractiveIndex:numberValue('apple-ri')},pose:{position:{x:numberValue('apple-pos-x'),y:numberValue('apple-pos-y'),z:numberValue('apple-pos-z')},eulerAngles:{x:0,y:0,z:0}}};}
     function appleStatus(text){document.querySelector('#apple-status').textContent=text;}
-    window.FruitsimAppleGenerated=function(sampleId){document.querySelector('#apple-sample-id').textContent=`sample_id: ${sampleId}`;appleStatus('Apple generated · visual parameters applied · physical parameters stored as metadata.');};
-    window.FruitsimAppleBatchGenerated=function(ids){const values=String(ids||'').split(',').filter(Boolean);document.querySelector('#apple-sample-id').textContent=`sample_ids: ${values.join(', ')}`;appleStatus(`Batch generated · ${values.length} apples · seed start ${numberValue('apple-seed')}.`);};
-    window.FruitsimAppleGenerationFailed=function(message){appleStatus(`Generation failed: ${message}`);};
-    window.FruitsimAppleCleared=function(){document.querySelector('#apple-sample-id').textContent='sample_id: -';appleStatus('Generated apples cleared.');};
-    document.querySelector('#generate-apple').onclick=()=>{const sent=sendUnity('FruitsimOpticsExperiment','GenerateAppleJson',JSON.stringify(applePayload()));if(!sent)appleStatus('Unity 尚未就绪，生成请求未发送。');};
-    document.querySelector('#generate-batch').onclick=()=>{const count=Math.max(1,Math.min(32,Math.round(numberValue('apple-batch-count'))));const payload={count,base_seed:Math.round(numberValue('apple-seed')),request:applePayload(Math.round(numberValue('apple-seed')))};const sent=sendUnity('FruitsimOpticsExperiment','GenerateBatchJson',JSON.stringify(payload));if(!sent)appleStatus('Unity 尚未就绪，批量请求未发送。');};
-    document.querySelector('#clear-apples').onclick=()=>{const sent=sendUnity('FruitsimOpticsExperiment','ClearGenerated');appleStatus(sent?'Clear request sent to Unity…':'Unity 尚未就绪，清理请求未发送。');};
+    window.FruitsimAppleGenerated=function(sampleId){document.querySelector('#apple-sample-id').textContent=`样本编号：${sampleId}`;appleStatus('样本已生成，外观参数已应用。');};
+    window.FruitsimAppleBatchGenerated=function(ids){const values=String(ids||'').split(',').filter(Boolean);document.querySelector('#apple-sample-id').textContent=`样本编号：${values.join('、')}`;appleStatus(`已生成 ${values.length} 个样本，随机种子起点为 ${numberValue('apple-seed')}。`);};
+    window.FruitsimAppleGenerationFailed=function(){appleStatus('样本生成失败，请检查参数后重试。');};
+    window.FruitsimAppleCleared=function(){document.querySelector('#apple-sample-id').textContent='样本编号：-';appleStatus('已清除生成的样本。');};
+    document.querySelector('#generate-apple').onclick=()=>{const sent=sendUnity('FruitsimOpticsExperiment','GenerateAppleJson',JSON.stringify(applePayload()));if(!sent)appleStatus('三维场景尚未就绪。');};
+    document.querySelector('#generate-batch').onclick=()=>{const count=Math.max(1,Math.min(32,Math.round(numberValue('apple-batch-count'))));const payload={count,base_seed:Math.round(numberValue('apple-seed')),request:applePayload(Math.round(numberValue('apple-seed')))};const sent=sendUnity('FruitsimOpticsExperiment','GenerateBatchJson',JSON.stringify(payload));if(!sent)appleStatus('三维场景尚未就绪。');};
+    document.querySelector('#clear-apples').onclick=()=>{const sent=sendUnity('FruitsimOpticsExperiment','ClearGenerated');appleStatus(sent?'正在清除样本…':'三维场景尚未就绪。');};
     document.querySelector('#zoom-in').onclick=()=>sendUnity('FruitsimOrbitCamera','ZoomIn');document.querySelector('#zoom-out').onclick=()=>sendUnity('FruitsimOrbitCamera','ZoomOut');document.querySelector('#reset-view').onclick=()=>sendUnity('FruitsimOrbitCamera','ResetView');document.querySelector('#fullscreen').onclick=()=>document.querySelector('#unity-container').requestFullscreen();
-    document.querySelector('#apply-optics').onclick=()=>{const payload={wavelength_nm:Number(document.querySelector('#wavelength').value),ring_radius_ratio:Number(document.querySelector('#ring-radius').value),ring_height_ratio:Number(document.querySelector('#ring-height').value),incident_angle_deg:Number(document.querySelector('#incident-angle').value),beam_divergence_deg:Number(document.querySelector('#divergence').value),optical_power:Number(document.querySelector('#optical-power').value),sensor_radius_ratio:Number(document.querySelector('#sensor-radius').value),sensor_offset_ratio:Number(document.querySelector('#sensor-offset').value),sensor_fov_deg:Number(document.querySelector('#sensor-fov').value),show_rays:document.querySelector('#show-rays').checked};const sent=sendUnity('FruitsimOpticsExperiment','ApplyWebParameters',JSON.stringify(payload));document.querySelector('#parameter-status').textContent=sent?`已应用：${payload.wavelength_nm} nm，倾角 ${payload.incident_angle_deg}°，功率 ${payload.optical_power}`:'Unity 尚未就绪，参数未发送。';command('viewer.set_wavelength',{wavelength_nm:payload.wavelength_nm},document.querySelector('#run-id').value.trim(),true);};
-    function setConnection(text,online){connection.textContent=online?'GATEWAY ONLINE':'GATEWAY '+text.toUpperCase();connection.classList.toggle('online',!!online);gatewayState.textContent=text;}
-    function log(message){const time=new Date().toLocaleTimeString();if(logBox.textContent==='Waiting for Gateway…')logBox.textContent='';logBox.textContent+=`[${time}] ${message}\n`;logBox.scrollTop=logBox.scrollHeight;}
+    function applyOptics(){const payload={light_count:Math.max(1,Math.min(64,Math.round(numberValue('light-count')))),wavelength_nm:numberValue('wavelength'),ring_radius_ratio:numberValue('ring-radius'),ring_height_ratio:numberValue('ring-height'),incident_angle_deg:numberValue('incident-angle'),beam_divergence_deg:numberValue('divergence'),optical_power:numberValue('optical-power'),sensor_radius_ratio:numberValue('sensor-radius'),sensor_offset_ratio:numberValue('sensor-offset'),sensor_fov_deg:numberValue('sensor-fov'),show_rays:document.querySelector('#show-rays').checked};const sent=sendUnity('FruitsimOpticsExperiment','ApplyWebParameters',JSON.stringify(payload));document.querySelector('#parameter-status').textContent=sent?`参数已应用：${payload.light_count} 个光源，${payload.wavelength_nm} nm，倾角 ${payload.incident_angle_deg}°。`:'三维场景尚未就绪。';command('viewer.set_wavelength',{wavelength_nm:payload.wavelength_nm},document.querySelector('#run-id').value.trim(),true);}
+    document.querySelector('#apply-optics').onclick=applyOptics;
+    ['light-count','wavelength','ring-radius','ring-height','incident-angle','divergence','optical-power','sensor-radius','sensor-offset','sensor-fov','show-rays'].forEach(id=>document.querySelector(`#${id}`).addEventListener('change',applyOptics));
+    function setConnection(text,online){const labels={connecting:'连接中',connected:'已连接',offline:'未连接',error:'连接失败'};connection.textContent=`计算服务${labels[text]||text}`;connection.classList.toggle('online',!!online);gatewayState.textContent=labels[text]||text;}
+    function log(message){const time=new Date().toLocaleTimeString();if(logBox.textContent==='尚无运行记录。')logBox.textContent='';logBox.textContent+=`[${time}] ${message}\n`;logBox.scrollTop=logBox.scrollHeight;}
     function gatewayUrl(){const scheme=location.protocol==='https:'?'wss':'ws';return`${scheme}://${location.hostname}:${Number(document.querySelector('#gateway-port').value)||8765}`;}
-    function command(name,payload,runId,quiet=false){if(!gateway||gateway.readyState!==WebSocket.OPEN){if(!quiet)log('Gateway 未连接，命令未发送');return;}const message={protocol:1,type:'command',command_id:`web-${Date.now()}-${Math.random().toString(16).slice(2)}`,name,run_id:runId||null,payload:payload||{},client_ts:new Date().toISOString()};gateway.send(JSON.stringify(message));log(`→ command ${name}`);}
-    function connect(){if(gateway&&gateway.readyState===WebSocket.OPEN){gateway.close();return;}setConnection('connecting',false);gateway=new WebSocket(gatewayUrl());gateway.onopen=()=>{setConnection('connected',true);log(`Gateway connected: ${gatewayUrl()}`);gateway.send(JSON.stringify({type:'replay',after_seq:lastSeq}));};gateway.onclose=()=>setConnection('offline',false);gateway.onerror=()=>{setConnection('error',false);log('Gateway WebSocket error');};gateway.onmessage=event=>{let message;try{message=JSON.parse(event.data);}catch(_){log('← invalid JSON');return;}if(message.type==='hello'){lastSeq=Math.max(lastSeq,message.latest_seq||0);document.querySelector('#last-seq').textContent=lastSeq;log(`← hello latest_seq=${lastSeq}`);return;}if(message.type==='command_ack'){log(`← ack ${message.command_id}: ${message.accepted?'accepted':'rejected'}`);return;}if(message.type==='event'){lastSeq=Math.max(lastSeq,message.seq||0);document.querySelector('#last-seq').textContent=lastSeq;const p=message.payload||{};document.querySelector('#run-state').textContent=message.status||'-';document.querySelector('#run-stage').textContent=message.stage||'-';if(p.run_dir)document.querySelector('#run-path').textContent=p.run_dir;log(`← #${message.seq} ${message.kind} · ${message.stage}/${message.status}`);}};}
+    function command(name,payload,runId,quiet=false){if(!gateway||gateway.readyState!==WebSocket.OPEN){if(!quiet)log('计算服务未连接，无法发送任务。');return;}const message={protocol:1,type:'command',command_id:`web-${Date.now()}-${Math.random().toString(16).slice(2)}`,name,run_id:runId||null,payload:payload||{},client_ts:new Date().toISOString()};gateway.send(JSON.stringify(message));log('已发送计算请求。');}
+    function friendlyStage(value){const labels={accepted:'准备数据',configuration:'载入参数',simulation:'光传输模拟',visualization:'生成图表',audit:'结果检查',complete:'完成',failed:'失败',cancelled:'已取消'};return labels[value]||String(value||'-').replaceAll('_',' ');}
+    function friendlyStatus(value){const labels={idle:'待机',queued:'排队中',running:'运行中',completed:'已完成',failed:'失败',cancelled:'已取消'};return labels[value]||String(value||'待机');}
+    function connect(){if(gateway&&gateway.readyState===WebSocket.OPEN){gateway.close();return;}setConnection('connecting',false);gateway=new WebSocket(gatewayUrl());gateway.onopen=()=>{setConnection('connected',true);log('已连接计算服务。');gateway.send(JSON.stringify({type:'replay',after_seq:lastSeq}));};gateway.onclose=()=>setConnection('offline',false);gateway.onerror=()=>{setConnection('error',false);log('计算服务连接失败。');};gateway.onmessage=event=>{let message;try{message=JSON.parse(event.data);}catch(_){log('收到无法识别的服务响应。');return;}if(message.type==='hello'){lastSeq=Math.max(lastSeq,message.latest_seq||0);document.querySelector('#last-seq').textContent=lastSeq;return;}if(message.type==='command_ack'){log(message.accepted?'任务已接收。':'任务未能启动，请检查参数。');return;}if(message.type==='event'){lastSeq=Math.max(lastSeq,message.seq||0);document.querySelector('#last-seq').textContent=lastSeq;const p=message.payload||{};document.querySelector('#run-state').textContent=friendlyStatus(message.status);document.querySelector('#run-stage').textContent=friendlyStage(message.stage);if(p.run_dir)document.querySelector('#run-path').textContent=p.run_dir;log(`计算进度：${friendlyStage(message.stage)} · ${friendlyStatus(message.status)}`);}};}
     document.querySelector('#connect-btn').onclick=connect;document.querySelector('#start-btn').onclick=()=>command('run.start',{mode:'math',seed:Number(document.querySelector('#seed').value),samples:Number(document.querySelector('#samples').value)},document.querySelector('#run-id').value.trim());document.querySelector('#cancel-btn').onclick=()=>command('run.cancel',{},document.querySelector('#run-id').value.trim());document.querySelector('#replay-btn').onclick=()=>{if(gateway&&gateway.readyState===WebSocket.OPEN)gateway.send(JSON.stringify({type:'replay',after_seq:0}));};
-    const buildUrl='Build',loaderUrl=buildUrl+'/{{{ LOADER_FILENAME }}}';const config={dataUrl:buildUrl+'/{{{ DATA_FILENAME }}}',frameworkUrl:buildUrl+'/{{{ FRAMEWORK_FILENAME }}}',codeUrl:buildUrl+'/{{{ CODE_FILENAME }}}',streamingAssetsUrl:'StreamingAssets',companyName:'Fruitsim',productName:'Fruitsim Research Workbench',productVersion:'0.2',showBanner:(msg,type)=>log(`${type||'info'}: ${msg}`),devicePixelRatio:1};const script=document.createElement('script');script.src=loaderUrl;script.onload=()=>createUnityInstance(canvas,config,progress=>{document.querySelector('#progress div').style.width=`${progress*100}%`;}).then(instance=>{unityInstance=instance;document.querySelector('#loading').style.display='none';unityState.textContent='UNITY READY';log('Unity WebGL ready');}).catch(error=>{unityState.textContent='UNITY FAILED';log(`Unity load error: ${error}`);});document.body.appendChild(script);
+    const buildUrl='Build',loaderUrl=buildUrl+'/{{{ LOADER_FILENAME }}}';const config={dataUrl:buildUrl+'/{{{ DATA_FILENAME }}}',frameworkUrl:buildUrl+'/{{{ FRAMEWORK_FILENAME }}}',codeUrl:buildUrl+'/{{{ CODE_FILENAME }}}',streamingAssetsUrl:'StreamingAssets',companyName:'Fruitsim',productName:'Fruitsim Research Workbench',productVersion:'0.2',showBanner:(msg,type)=>log('三维场景提示：'+msg),devicePixelRatio:1};const script=document.createElement('script');script.src=loaderUrl;script.onload=()=>createUnityInstance(canvas,config,progress=>{document.querySelector('#progress div').style.width=`${progress*100}%`;}).then(instance=>{unityInstance=instance;document.querySelector('#loading').style.display='none';unityState.textContent='已就绪';log('三维场景已就绪。');}).catch(()=>{unityState.textContent='载入失败';log('三维场景载入失败，请重新打开页面。');});document.body.appendChild(script);
   </script>
   <script>window.__FRUITSIM_P1_HARNESS__ = new URLSearchParams(location.search).has('harness');</script>
   <script src="static/ml_p1_contract.js"></script>

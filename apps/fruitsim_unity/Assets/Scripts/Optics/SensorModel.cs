@@ -95,11 +95,11 @@ namespace Fruitsim.UnityOptics
             if (housing != null) return;
             housing = CreateCylinderVisual("SensorHousing_VisualOnly");
             housing.transform.SetParent(transform, false);
-            AssignMaterial(housing, housingMaterial, new Color(0.12f, 0.14f, 0.17f));
+            AssignMaterial(housing, housingMaterial, "FruitsimRig", new Color(0.16f, 0.17f, 0.19f));
 
             aperture = CreateCylinderVisual("SensorAperture_OpticalOnly");
             aperture.transform.SetParent(transform, false);
-            AssignMaterial(aperture, apertureMaterial, new Color(0.03f, 0.45f, 0.8f));
+            AssignMaterial(aperture, apertureMaterial, "FruitsimGlass", new Color(0.78f, 0.90f, 1.0f));
         }
 
         private static GameObject CreateCylinderVisual(string name)
@@ -111,7 +111,7 @@ namespace Fruitsim.UnityOptics
             return target;
         }
 
-        private static void AssignMaterial(GameObject target, Material material, Color fallback)
+        private static void AssignMaterial(GameObject target, Material material, string resourceName, Color fallback)
         {
             Renderer renderer = target.GetComponent<Renderer>();
             if (renderer == null) return;
@@ -120,7 +120,7 @@ namespace Fruitsim.UnityOptics
                 renderer.sharedMaterial = material;
                 return;
             }
-            Shader shader = Resources.Load<Shader>("FruitsimSolid");
+            Shader shader = Resources.Load<Shader>(resourceName);
             if (shader == null)
             {
                 Debug.LogWarning($"[Fruitsim Sensor] No compatible shader is available for {target.name}; continuing without a visual material.");
@@ -131,6 +131,13 @@ namespace Fruitsim.UnityOptics
                 color = fallback,
                 name = target.name + "_Material"
             };
+            generated.SetColor("_Color", fallback);
+            if (resourceName == "FruitsimGlass")
+            {
+                generated.SetFloat("_Roughness", 0.0752688f);
+                generated.SetFloat("_IOR", 1.5f);
+                generated.SetFloat("_Transmission", 1.0f);
+            }
             renderer.sharedMaterial = generated;
         }
     }

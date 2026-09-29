@@ -1,4 +1,4 @@
-/* P1 teaching surface: quiet research UI, with chart area reserved for evidence. */
+/* 教学图表与交互步骤的版式。 */
 .ml-mode-switch { display:flex; align-items:stretch; border:1px solid #aeb8bf; background:#fff; }
 .ml-mode-switch button { display:grid; gap:1px; border:0; border-right:1px solid #d8dfe3; background:#fff; color:#53616d; padding:6px 9px; cursor:pointer; text-align:left; }
 .ml-mode-switch button:last-child { border-right:0; }
@@ -78,6 +78,9 @@
 .ml-p1-toolbar { display:flex; flex-wrap:wrap; align-items:end; gap:12px; padding:12px 14px; margin-bottom:12px; }
 .ml-p1-toolbar label { display:grid; gap:4px; color:var(--muted); font-size:11px; }
 .ml-p1-toolbar select { min-width:150px; border:1px solid #b8c1c7; background:#fff; padding:6px 8px; color:var(--ink); }
+.ml-dataset-description { max-width:220px; color:var(--muted); font-size:10px; line-height:1.4; }
+.ml-random-sample-wrap { display:grid; gap:4px; min-width:120px; color:var(--muted); font-size:11px; }
+.ml-random-sample-wrap strong { width:max-content; border:1px solid #d5b474; border-radius:4px; background:#fbf6ea; color:#745720; padding:6px 8px; font:600 11px ui-monospace,monospace; }
 .ml-toolbar-button { width:auto; margin:0 0 0 auto; padding:7px 12px; }
 .ml-status { color:var(--muted); font:11px ui-monospace,monospace; min-width:48px; }
 .ml-p1-shell { overflow:hidden; }
@@ -121,22 +124,20 @@
 .ml-pipeline-links button { border:1px solid #aeb8bf; background:#fff; color:var(--blue); padding:6px 8px; cursor:pointer; font-size:11px; }
 .ml-pipeline-links b { color:var(--orange); font-size:16px; }
 .ml-stage-run-graph { display:block; }
-.ml-stage-run-graph button { display:grid; gap:2px; min-width:145px; text-align:left; }
-.ml-stage-run-graph button strong { color:var(--blue); font-size:12px; }
-.ml-stage-run-graph button span { color:var(--ink); font:11px ui-monospace,monospace; }
-.ml-stage-run-graph button small { color:var(--muted); font:10px ui-monospace,monospace; }
-.ml-dag { display:grid; gap:10px; }
-.ml-dag-level { display:flex; gap:10px; align-items:stretch; flex-wrap:wrap; padding:4px 0; }
-.ml-dag-node { display:grid; gap:4px; min-width:145px; flex:0 1 190px; }
-.ml-dag-node button { width:100%; }
-.ml-dag-relations { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font:10px ui-monospace,monospace; }
-.ml-dag-relations.parents { color:var(--blue); }
-.ml-dag-relations.children { color:var(--orange); }
-.ml-dag-edge-list { display:grid; gap:4px; border-top:1px solid var(--line); padding-top:8px; color:var(--muted); font:10px ui-monospace,monospace; }
-.ml-dag-edge-list strong { color:var(--ink); font:600 10px Arial,"Noto Sans SC",sans-serif; text-transform:uppercase; letter-spacing:.05em; }
-.ml-dag-edge { display:flex; gap:7px; align-items:center; padding:3px 6px; background:#fafbfb; border-left:2px solid var(--orange); }
-.ml-dag-edge b { color:var(--orange); }
-.ml-graph-note { margin:0 0 8px; color:var(--muted); font-size:11px; }
+.ml-flow { display:grid; gap:10px; }
+.ml-flow-chain { display:flex; align-items:stretch; gap:6px; overflow-x:auto; padding:5px 1px 9px; }
+.ml-flow-node { display:grid; align-content:center; gap:5px; flex:1 0 118px; min-height:66px; border:1px solid #cbd4d8; border-radius:5px; background:#fff; color:var(--ink); padding:8px 9px; text-align:left; cursor:pointer; }
+.ml-flow-node:hover { border-color:var(--blue); background:#f4f8fa; }
+.ml-flow-node strong { color:var(--blue); font-size:12px; }
+.ml-flow-node small { color:var(--muted); font-size:10px; line-height:1.35; }
+.ml-flow-node.branch { flex:0 1 220px; min-height:52px; border-color:#c4a46a; }
+.ml-flow-node.branch strong { color:#76551d; }
+.ml-flow-arrow { align-self:center; flex:0 0 auto; color:var(--orange); font-size:17px; }
+.ml-flow-branch { display:flex; flex-wrap:wrap; align-items:center; gap:7px; border-left:3px solid #c4a46a; background:#fbf8f1; padding:8px 10px; }
+.ml-flow-branch-label,.ml-flow-branch-note { flex:0 0 100%; color:var(--muted); font-size:10px; }
+.ml-results-process { min-width:0; }
+.ml-subsection-title { margin-top:17px !important; }
+.ml-graph-note { margin:0 0 8px; color:var(--muted); font-size:11px; line-height:1.5; }
 .ml-table-scroll { overflow:auto; }
 .ml-metric-grid { display:grid; grid-template-columns:repeat(4,1fr); border:1px solid var(--line); }
 .ml-metric-grid div { padding:8px; border-right:1px solid var(--line); }
@@ -144,8 +145,11 @@
 .ml-metric-grid span { display:block; color:var(--muted); font-size:10px; }
 .ml-metric-grid strong { display:block; margin-top:3px; font:600 15px ui-monospace,monospace; }
 .ml-compare-table { width:100%; border-collapse:collapse; margin-top:10px; font-size:11px; }
-.ml-compare-table th,.ml-compare-table td { text-align:left; border-bottom:1px solid #e3e7e9; padding:6px; }
+.ml-compare-table th,.ml-compare-table td { text-align:left; border-bottom:1px solid #e3e7e9; padding:7px 6px; white-space:nowrap; }
 .ml-compare-table th { color:var(--muted); font-weight:600; }
+.ml-compare-table td:first-child small { display:block; margin-top:3px; color:var(--muted); font-size:9px; }
+.ml-compare-table tr.active { background:#f1f7fa; }
+.ml-compare-table tr.active td:first-child strong { color:var(--blue); }
 .ml-reference-contract { display:none; }
 .apple-generator { margin-top:14px; border-top:1px solid var(--line); padding-top:10px; }
 .apple-generator summary { cursor:pointer; color:var(--blue); font-weight:650; font-size:13px; }
@@ -158,3 +162,69 @@
 .apple-sample-id { display:block; overflow-wrap:anywhere; color:var(--blue); font-size:10px; }
 @media (max-width:1050px) { .ml-stage-meta { grid-template-columns:repeat(3,1fr); } .ml-p1-grid { grid-template-columns:1fr; } .ml-explanation { border-right:0; border-bottom:1px solid var(--line); } .ml-results-card { grid-template-columns:1fr; } }
 @media (max-width:720px) { .ml-p1-toolbar { display:grid; grid-template-columns:1fr 1fr; } .ml-toolbar-button { width:100%; margin:0; } .ml-stage-meta { grid-template-columns:repeat(2,1fr); } .ml-animation-bar { flex-wrap:wrap; } .ml-animation-bar input { order:5; flex-basis:100%; } .ml-event-label { min-width:0; } .ml-metric-grid { grid-template-columns:repeat(2,1fr); } .teaching-mode .ml-p1-grid { grid-template-columns:1fr; } .teaching-mode .ml-explanation p { font-size:14px; } .teaching-scene-contract { grid-template-columns:1fr; } .teaching-scene-arrow { transform:rotate(90deg); min-height:24px; } .teaching-metric-grid { grid-template-columns:repeat(2,minmax(120px,1fr)); } .teaching-pipeline { grid-template-columns:1fr; } .teaching-pipeline-branch { border-left:0; border-top:2px solid var(--gold); padding:8px 0 0; } }
+
+/* 叙事脊椎：来源提示、主角样本、数据契约、阶段进度轨道、章节时间轴。 */
+.ml-source-note { margin:0 0 12px; padding:8px 12px; border:1px solid #cbd8de; background:#fff; color:#4d5964; font-size:12px; line-height:1.5; }
+.ml-source-note em { color:var(--muted); font-style:normal; }
+.ml-source-strong { color:var(--blue); font-weight:650; }
+.link-button { border:0; background:none; color:var(--blue); cursor:pointer; padding:0 0 0 6px; text-decoration:underline; font-size:12px; }
+.ml-sample-card { display:flex; align-items:center; gap:9px; min-width:268px; border:1px solid #d5b474; border-radius:6px; background:#fbf6ea; padding:6px 9px; }
+.sample-emoji { font-size:20px; line-height:1; }
+.sample-meta { display:grid; gap:2px; min-width:0; }
+.sample-meta strong { color:#745720; font:600 12px ui-monospace,monospace; }
+.sample-meta small { color:#8a6d3b; font-size:10px; }
+.ml-sample-card .small-button { margin-left:auto; }
+
+.ml-contract-bar { padding:10px 14px; border-bottom:1px solid var(--line); background:#f7fafb; }
+.ml-contract-bar[hidden] { display:none !important; }
+.ml-contract-inner { display:grid; grid-template-columns:1fr 34px minmax(150px,1.1fr) 34px 1fr; align-items:center; gap:8px; }
+.ml-contract-cell,.ml-contract-method { display:grid; gap:2px; min-height:54px; align-content:center; border:1px solid #c8d7df; border-radius:6px; background:#fff; padding:7px 10px; }
+.ml-contract-cell span,.ml-contract-method span { color:var(--muted); font-size:10px; }
+.ml-contract-cell strong,.ml-contract-method strong { color:var(--blue); font-size:13px; }
+.ml-contract-cell small,.ml-contract-method small { color:var(--ink); font:11px ui-monospace,monospace; }
+.ml-contract-arrow { display:grid; place-items:center; color:var(--orange); font-size:20px; }
+.ml-contract-cell.changed { animation:contract-flash 1s ease-out; }
+@keyframes contract-flash { 0% { background:#fff3d6; border-color:#d5b474; transform:scale(1.03); } 100% { background:#fff; border-color:#c8d7df; transform:scale(1); } }
+
+.stage-tabs { display:flex; align-items:stretch; gap:0; border-bottom:0; overflow-x:auto; padding:12px 14px 8px; background:#fbfcfc; }
+.stage-tabs button { position:relative; display:flex; align-items:center; gap:8px; min-width:148px; border:1px solid #cbd4d8; border-radius:8px; background:#fff; color:#46525d; padding:8px 12px; cursor:pointer; text-align:left; white-space:normal; }
+.stage-tabs button + button { margin-left:30px; }
+.stage-tabs button:not(:last-child)::after { content:'→'; position:absolute; right:-25px; top:50%; transform:translateY(-50%); color:var(--orange); font-size:16px; z-index:2; }
+.stage-node-badge { display:grid; place-items:center; width:24px; height:24px; flex:0 0 auto; border-radius:50%; border:2px solid #b9c4cb; color:#7a8792; font:600 12px ui-monospace,monospace; background:#fff; }
+.stage-node-body { display:grid; gap:1px; min-width:0; }
+.stage-node-body strong { color:var(--ink); font-size:12px; font-weight:650; }
+.stage-node-dim { color:var(--muted); font:11px ui-monospace,monospace; }
+.stage-node-branch { color:var(--gold); font-size:9px; font-style:normal; }
+.stage-tabs button.done .stage-node-badge { border-color:var(--blue); background:var(--blue); color:#fff; }
+.stage-tabs button.current { border-color:var(--blue); background:#e8f1f6; box-shadow:0 2px 8px rgba(32,92,134,.15); }
+.stage-tabs button.current .stage-node-badge { border-color:var(--blue); background:var(--blue); color:#fff; box-shadow:0 0 0 4px rgba(32,92,134,.14); }
+.stage-tabs button.current .stage-node-body strong { color:var(--blue); }
+.stage-tabs button.todo { opacity:.72; }
+
+.ml-chapter-bar { display:flex; align-items:center; gap:12px; padding:8px 14px; border-top:1px solid #e3e7e9; background:#fbfcfc; }
+.ml-chapter-segments { display:flex; gap:5px; flex:1; min-width:120px; }
+.ml-chapter-seg { position:relative; flex:1; height:8px; border-radius:4px; background:#e1e7ea; overflow:hidden; }
+.ml-chapter-seg i { display:block; height:100%; width:0; background:var(--blue); opacity:.5; transition:width .3s ease; }
+.ml-chapter-seg.done i { opacity:.85; }
+.ml-chapter-seg.current i { opacity:1; background:var(--orange); }
+.ml-chapter-label { color:var(--muted); font:11px ui-monospace,monospace; white-space:nowrap; }
+
+.ml-toast { position:fixed; left:50%; bottom:26px; transform:translate(-50%,12px); max-width:min(560px,90vw); padding:11px 16px; border-radius:8px; background:#17212b; color:#f4f7f8; font-size:13px; line-height:1.5; box-shadow:0 8px 26px rgba(0,0,0,.28); opacity:0; pointer-events:none; transition:opacity .25s ease, transform .25s ease; z-index:9999; }
+.ml-toast.show { opacity:1; transform:translate(-50%,0); }
+.ml-toast[hidden] { display:none !important; }
+
+/* PCA 观察支线：虚线降级，与主链的实线蓝色形成对比。 */
+.teaching-pipeline-branch { border-left:2px dashed var(--gold); }
+.teaching-pipeline-branch button { border-style:dashed; background:#fcfaf5; }
+.ml-flow-node.branch { border-style:dashed; background:#fbf8f1; }
+.ml-flow-branch { border-left:3px dashed #c4a46a; }
+
+@media (max-width:1050px) { .ml-contract-inner { grid-template-columns:1fr 24px 1fr 24px 1fr; } }
+@media (max-width:720px) {
+  .ml-sample-card { grid-column:1 / -1; }
+  .stage-tabs button { min-width:0; flex:1 0 auto; }
+  .stage-tabs button + button { margin-left:22px; }
+  .ml-contract-inner { grid-template-columns:1fr; }
+  .ml-contract-arrow { transform:rotate(90deg); }
+  .ml-chapter-bar { flex-direction:column; align-items:stretch; gap:6px; }
+}

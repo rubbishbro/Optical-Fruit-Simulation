@@ -26,10 +26,19 @@ namespace Fruitsim.UnityOptics
 
         public string LastSampleId { get; private set; } = string.Empty;
         public int GeneratedCount => generated.Count;
+        public event Action<AppleInstance> AppleChanged;
 
         public void Initialize(AppleGenerator value)
         {
             generator = value;
+        }
+
+        public void AdoptApple(AppleInstance instance)
+        {
+            generated.Clear();
+            if (instance == null) return;
+            generated.Add(instance);
+            LastSampleId = instance.sampleId;
         }
 
         public void GenerateAppleJson(string json)
@@ -39,7 +48,7 @@ namespace Fruitsim.UnityOptics
                 AppleGenerationRequest request = JsonUtility.FromJson<AppleGenerationRequest>(json);
                 if (request == null) throw new ArgumentException("apple request JSON is empty");
                 AppleInstance instance = GetGenerator().GenerateApple(request);
-                generated.Add(instance);
+                ReplaceCurrent(instance);
                 LastSampleId = instance.sampleId;
                 Debug.Log($"[Fruitsim Apple] generated sample_id={instance.sampleId}");
                 NotifyBrowser("FruitsimAppleGenerated", instance.sampleId);
@@ -60,6 +69,8 @@ namespace Fruitsim.UnityOptics
                 int count = Mathf.Clamp(batch.count, 1, maxBatchCount);
                 AppleGenerationRequest template = batch.request ?? new AppleGenerationRequest();
                 List<string> ids = new List<string>(count);
+                List<AppleInstance> previous = new List<AppleInstance>(generated);
+                generated.Clear();
                 for (int index = 0; index < count; index++)
                 {
                     AppleGenerationRequest request = AppleRequestIdentity.Snapshot(template);
@@ -68,9 +79,12 @@ namespace Fruitsim.UnityOptics
                     generated.Add(instance);
                     ids.Add(instance.sampleId);
                 }
+                foreach (AppleInstance instance in previous)
+                    GetGenerator().DestroyApple(instance);
                 LastSampleId = ids[ids.Count - 1];
                 string joined = string.Join(",", ids.ToArray());
                 Debug.Log($"[Fruitsim Apple] generated batch count={ids.Count} sample_ids={joined}");
+                AppleChanged?.Invoke(generated[generated.Count - 1]);
                 NotifyBrowser("FruitsimAppleBatchGenerated", joined);
             }
             catch (Exception error)
@@ -86,7 +100,18 @@ namespace Fruitsim.UnityOptics
                 GetGenerator().DestroyApple(generated[index]);
             generated.Clear();
             LastSampleId = string.Empty;
+            AppleChanged?.Invoke(null);
             NotifyBrowser("FruitsimAppleCleared", string.Empty);
+        }
+
+        private void ReplaceCurrent(AppleInstance replacement)
+        {
+            List<AppleInstance> previous = new List<AppleInstance>(generated);
+            generated.Clear();
+            generated.Add(replacement);
+            foreach (AppleInstance instance in previous)
+                GetGenerator().DestroyApple(instance);
+            AppleChanged?.Invoke(replacement);
         }
 
         private AppleGenerator GetGenerator()

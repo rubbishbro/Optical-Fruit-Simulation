@@ -8,7 +8,7 @@ synthetic and is **not valid for real SSC prediction**.
 
 Start with [`docs/REPOSITORY_MAP.md`](docs/REPOSITORY_MAP.md) for the directory responsibilities,
 stable C++ interfaces, current geometry boundary, CLI/ML data flow and the parts that are still
-planned rather than implemented. [`GUIDE.md`](GUIDE.md) contains the full engineering guide and
+planned rather than implemented. [`GUIDE.md`](docs/GUIDE.md) contains the full engineering guide and
 [`docs/TECHNICAL_CHAIN.md`](docs/TECHNICAL_CHAIN.md) contains the file-level physical chain.
 
 ## Build and test
@@ -19,8 +19,7 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-The first configure downloads pinned nlohmann/json 3.12.0. CUDA, the GUI and practice example are
-off by default.
+The first configure downloads pinned nlohmann/json 3.12.0. CUDA and the GUI are off by default.
 
 ## Statistical apple shape
 
@@ -109,11 +108,8 @@ cmake -S . -B build-gui -DFRUITSIM_BUILD_GUI=ON
 cmake --build build-gui --parallel
 ./build-gui/apps/fruitsim_gui/fruitsim_gui
 
-export FRUITSIM_CUDA_ROOT=/home/rubbishbro/miniforge3/envs/mamba-torch38
 cmake -S . -B build-cuda \
-  -DFRUITSIM_ENABLE_CUDA=ON \
-  -DCMAKE_CUDA_COMPILER="$FRUITSIM_CUDA_ROOT/bin/nvcc" \
-  -DCUDAToolkit_ROOT="$FRUITSIM_CUDA_ROOT"
+  -DFRUITSIM_ENABLE_CUDA=ON
 cmake --build build-cuda --parallel
 ctest --test-dir build-cuda --output-on-failure
 ./build-cuda/apps/fruitsim_cli/fruitsim_cli run \
@@ -125,6 +121,6 @@ The GUI uses pinned Dear ImGui, ImPlot and GLFW sources. The CUDA scalar backend
 layered-sphere photon lifecycle as the CPU reference, uses bounded batches, float propagation state,
 double tallies and fixed-order host reduction. CUDA tests are skipped when no device is visible.
 
-See [GUIDE.md](GUIDE.md) for startup commands, architecture, assumptions and roadmap. See
+See [GUIDE.md](docs/GUIDE.md) for startup commands, architecture, assumptions and roadmap. See
 [docs/TECHNICAL_CHAIN.md](docs/TECHNICAL_CHAIN.md) for the current end-to-end chain, source-file
 mapping, implementation details and literature/reference boundaries.

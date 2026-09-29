@@ -4,7 +4,7 @@
 
 本文记录仓库当前实际实现，作为代码、论文数据、验证结果和后续实验接入之间的索引。
 `synthetic_golden_delicious_v1` 只用于验证方法和软件流程，不能用于真实苹果 SSC 预测。
-构建、运行及 CUDA 环境命令见 [`GUIDE.md`](../GUIDE.md)。
+构建、运行及 CUDA 环境命令见 [`GUIDE.md`](GUIDE.md)。
 
 ## 1. 当前端到端链路
 
@@ -149,7 +149,7 @@ targets 是 `ssc_brix` 和 `firmness_n`。训练器本次仍保持 schema v1 行
 ### 3.2 单光子事件顺序
 
 CPU 金标准位于 [`src/transport/monte_carlo.cpp`](../src/transport/monte_carlo.cpp)，
-CUDA 对应实现在 [`libs/cuda/cuda_backend.cu`](../libs/cuda/cuda_backend.cu)：
+CUDA 对应实现在 [`src/cuda/cuda_backend.cu`](../src/cuda/cuda_backend.cu)：
 
 1. 从 pencil/Gaussian/ring source 发射，在空气中求与苹果外球的首次交点。
 2. 空气—苹果入射面的镜面反射使用确定性权重分裂：`R_specular` 计入反射，其余权重折射入射。
@@ -211,7 +211,7 @@ batch 边界。
 
 ### 3.5 CUDA 并行
 
-[`libs/cuda/cuda_backend.cu`](../libs/cuda/cuda_backend.cu) 当前使用每个 CUDA 线程处理一个光子，
+[`src/cuda/cuda_backend.cu`](../src/cuda/cuda_backend.cu) 当前使用每个 CUDA 线程处理一个光子，
 以有界 batch 启动：
 
 - 光子传播状态和光学参数使用 `float`，每光子标量 tally 及主机归约使用 `double`。
@@ -293,7 +293,7 @@ GridSearchCV 的每个内层折；文件名保留是为了接口兼容，后续�
 | optics | `include/fruitsim/optics/optics.hpp`、`src/optics/` | 参数校验、HG、Snell/Fresnel |
 | transport | `include/fruitsim/transport/`、`src/transport/` | 稳定问题/结果类型及 CPU 金标准 |
 | runtime | `include/fruitsim/runtime/`、`src/runtime/cpu_backend.cpp` | batch、线程、进度、取消、确定性归约 |
-| CUDA | `libs/cuda/cuda_backend.cu` | GPU 标量光子传输和 tally |
+| CUDA | `src/cuda/cuda_backend.cu` | GPU 标量光子传输和 tally |
 | IO | `include/fruitsim/io/`、`src/io/` | JSON 配置、CSV/JSON 结果和溯源 |
 | CLI | `apps/fruitsim_cli/main.cpp` | validate、run、scan-ring、devices 命令 |
 | GUI | `apps/fruitsim_gui/main.cpp` | 可选研究工作台 |
@@ -338,4 +338,4 @@ detector radius/acceptance 单调性、理想大孔径 detector、关闭 detecto
 7. 用独立果园/采收批次外部测试建立 literature prior、少样本校准、残差修正和实测重训练对照。
 8. 完成 GUI 任务生命周期和所有 provenance 展示；再扩展体素/网格、时间分辨、偏振与荧光。
 
-更详细的优先级和启动命令统一维护在 [`GUIDE.md`](../GUIDE.md)，避免两处命令随版本漂移。
+更详细的优先级和启动命令统一维护在 [`GUIDE.md`](GUIDE.md)，避免两处命令随版本漂移。

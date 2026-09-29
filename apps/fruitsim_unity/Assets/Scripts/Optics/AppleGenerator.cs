@@ -24,7 +24,7 @@ namespace Fruitsim.UnityOptics
             {
                 seed = seed,
                 geometry = geometry ?? new AppleGeometryParameters(),
-                visualMaterial = visualMaterial ?? new AppleVisualMaterial(),
+                visualMaterial = visualMaterial ?? AppleVisualMaterial.LoadBlenderDefaults(),
                 physical = physical ?? new ApplePhysicalProperties(),
                 pose = pose ?? new ApplePose(),
             });
@@ -65,6 +65,7 @@ namespace Fruitsim.UnityOptics
                 containerObject = container,
             };
             ApplyVisualMaterial(apple, snapshot.visualMaterial, instance);
+            HideAuthoredRingEmitters(container.transform);
             return instance;
         }
 
@@ -94,15 +95,35 @@ namespace Fruitsim.UnityOptics
                 Material material = new Material(shader)
                 {
                     name = $"GeneratedAppleMaterial_{owner.sampleId.Substring(owner.sampleId.Length - 12)}",
-                    color = visual.color,
+                    color = new Color(visual.color.r, visual.color.g, visual.color.b, 1.0f),
                 };
-                material.SetColor("_Color", visual.color);
+                // Fruit skin is intentionally opaque. The old 0.48 alpha came
+                // from a Blender geometry-debug scene, not the parameterized
+                // presentation material used by Fruitsim.
+                material.SetColor("_Color", new Color(visual.color.r, visual.color.g, visual.color.b, 1.0f));
                 material.SetFloat("_Roughness", Mathf.Clamp01(visual.roughness));
+                material.SetFloat("_Metallic", Mathf.Clamp01(visual.metallic));
+                material.SetFloat("_SpecularIORLevel", Mathf.Clamp01(visual.specularIORLevel));
+                material.SetFloat("_IOR", Mathf.Max(1.0f, visual.ior));
                 material.SetFloat("_SpotDensity", Mathf.Clamp01(visual.spotDensity));
                 material.SetFloat("_NormalStrength", Mathf.Clamp01(visual.normalStrength));
+                material.SetFloat("_SkinTransmission", Mathf.Clamp01(visual.skinTransmission));
                 material.SetFloat("_SpotSeed", StableMaterialSeed(owner.sampleId));
                 renderer.sharedMaterial = material;
                 owner.TrackOwnedRuntimeMaterial(material);
+            }
+        }
+
+        private static void HideAuthoredRingEmitters(Transform root)
+        {
+            // The Blender rig contains a fixed authoring-time emitter layout.
+            // Runtime lightCount is controlled by IlluminationRigController,
+            // so the fixed meshes must not remain visible beside the dynamic
+            // emitter pool.
+            foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
+            {
+                if (renderer.name.StartsWith("RingLampEmitter_", System.StringComparison.Ordinal))
+                    renderer.enabled = false;
             }
         }
 

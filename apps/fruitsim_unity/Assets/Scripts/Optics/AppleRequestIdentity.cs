@@ -32,10 +32,14 @@ namespace Fruitsim.UnityOptics
                 },
                 visualMaterial = new AppleVisualMaterial
                 {
-                    color = new Color(visual.color.r, visual.color.g, visual.color.b, visual.color.a),
+                    color = new Color(visual.color.r, visual.color.g, visual.color.b, 1.0f),
                     roughness = visual.roughness,
+                    metallic = visual.metallic,
+                    specularIORLevel = visual.specularIORLevel,
+                    ior = visual.ior,
                     spotDensity = visual.spotDensity,
                     normalStrength = visual.normalStrength,
+                    skinTransmission = visual.skinTransmission,
                 },
                 physical = new ApplePhysicalProperties
                 {
@@ -68,8 +72,12 @@ namespace Fruitsim.UnityOptics
             Append(text, "visual.color.b", FloatBits(value.visualMaterial.color.b));
             Append(text, "visual.color.a", FloatBits(value.visualMaterial.color.a));
             Append(text, "visual.roughness", FloatBits(value.visualMaterial.roughness));
+            Append(text, "visual.metallic", FloatBits(value.visualMaterial.metallic));
+            Append(text, "visual.specularIORLevel", FloatBits(value.visualMaterial.specularIORLevel));
+            Append(text, "visual.ior", FloatBits(value.visualMaterial.ior));
             Append(text, "visual.spotDensity", FloatBits(value.visualMaterial.spotDensity));
             Append(text, "visual.normalStrength", FloatBits(value.visualMaterial.normalStrength));
+            Append(text, "visual.skinTransmission", FloatBits(value.visualMaterial.skinTransmission));
             Append(text, "physical.sscBrix", FloatBits(value.physical.sscBrix));
             Append(text, "physical.waterContent", FloatBits(value.physical.waterContent));
             Append(text, "physical.absorptionScale", FloatBits(value.physical.absorptionScale));

@@ -57,7 +57,12 @@ namespace Fruitsim.UnityOptics
         private Material debugLineMaterial;
         private Light coaxialLight;
         private readonly List<Light> ringLights = new List<Light>();
+        private readonly List<GameObject> ringEmitters = new List<GameObject>();
         private readonly List<LineRenderer> directionRays = new List<LineRenderer>();
+        private Material ringEmitterMaterial;
+        private GameObject ringBase;
+        private Mesh ringBaseMesh;
+        private Material ringBaseMaterial;
         private Renderer[] appleRenderers = Array.Empty<Renderer>();
         private bool appleRenderersDirty = true;
         private bool visualsAvailable;
@@ -88,6 +93,16 @@ namespace Fruitsim.UnityOptics
         public float LastRebuildMilliseconds => lastRebuildMilliseconds;
         public int PooledLightCount => ringLights.Count + (coaxialLight == null ? 0 : 1);
         public int PooledRayCount => directionRays.Count;
+        public int ActiveRingEmitterCount
+        {
+            get
+            {
+                int count = 0;
+                foreach (GameObject emitter in ringEmitters)
+                    if (emitter != null && emitter.activeSelf) count++;
+                return count;
+            }
+        }
 
         public void UseExternalSensorVisuals()
         {
@@ -97,6 +112,7 @@ namespace Fruitsim.UnityOptics
         [Serializable]
         private sealed class WebOpticalParameters
         {
+            public int light_count;
             public float wavelength_nm;
             public float ring_radius_ratio;
             public float ring_height_ratio;
@@ -114,6 +130,7 @@ namespace Fruitsim.UnityOptics
         {
             WebOpticalParameters parameters = JsonUtility.FromJson<WebOpticalParameters>(json);
             if (parameters == null) return;
+            if (parameters.light_count > 0) LightCount = parameters.light_count;
             wavelengthNm = Mathf.Clamp(parameters.wavelength_nm, 400.0f, 1100.0f);
             RingRadiusRatio = parameters.ring_radius_ratio;
             RingHeightRatio = parameters.ring_height_ratio;
@@ -267,6 +284,11 @@ namespace Fruitsim.UnityOptics
             ringLightRig.position = center;
             Color displayColor = WavelengthToDisplayColor(wavelengthNm);
             displayColor.a = 0.88f;
+            if (ringEmitterMaterial != null)
+            {
+                ringEmitterMaterial.SetColor("_Color", displayColor);
+                ringEmitterMaterial.SetColor("_EmissionColor", displayColor);
+            }
             ringGuide.startColor = new Color(displayColor.r, displayColor.g, displayColor.b, 0.34f);
             ringGuide.endColor = ringGuide.startColor;
             float tilt = lightTiltDeg * Mathf.Deg2Rad;
@@ -276,6 +298,7 @@ namespace Fruitsim.UnityOptics
                 float phi = 2.0f * Mathf.PI * i / ringGuide.positionCount;
                 ringGuide.SetPosition(i, new Vector3(radius * Mathf.Cos(phi), 0.0f, radius * Mathf.Sin(phi)));
             }
+            BuildRingBase(ringY - center.y, radius, appleHeight, displayColor);
             for (int i = 0; i < lightCount; i++)
             {
                 float phi = 2.0f * Mathf.PI * i / lightCount;
@@ -302,9 +325,16 @@ namespace Fruitsim.UnityOptics
                     ray.SetPosition(0, position);
                     ray.SetPosition(1, position + direction * directionRayLength);
                 }
+                GameObject emitter = GetOrCreateRingEmitter(i);
+                emitter.transform.SetPositionAndRotation(
+                    position, Quaternion.FromToRotation(Vector3.up, direction));
+                float emitterSize = Mathf.Clamp(appleHeight * 0.028f, 0.018f, 0.12f);
+                emitter.transform.localScale = new Vector3(emitterSize, emitterSize * 0.42f, emitterSize);
+                emitter.SetActive(true);
             }
             for (int i = lightCount; i < ringLights.Count; i++) ringLights[i].gameObject.SetActive(false);
             for (int i = lightCount; i < directionRays.Count; i++) directionRays[i].gameObject.SetActive(false);
+            for (int i = lightCount; i < ringEmitters.Count; i++) ringEmitters[i].SetActive(false);
             debugRayRig.gameObject.SetActive(showDirectionRays && illuminationMode == IlluminationMode.RingIllumination);
         }
 
@@ -335,6 +365,111 @@ namespace Fruitsim.UnityOptics
                 directionRays.Add(line);
             }
             return directionRays[index];
+        }
+
+        private GameObject GetOrCreateRingEmitter(int index)
+        {
+            while (ringEmitters.Count <= index)
+            {
+                GameObject emitter = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                emitter.name = $"RingLampEmitter_{ringEmitters.Count:00}";
+                emitter.transform.SetParent(ringLightRig, true);
+                Collider collider = emitter.GetComponent<Collider>();
+                if (collider != null)
+                {
+                    if (Application.isPlaying) Destroy(collider);
+                    else DestroyImmediate(collider);
+                }
+                if (ringEmitterMaterial == null)
+                {
+                    ringEmitterMaterial = CreateOptionalMaterial("FruitsimRig", "RuntimeRingLampEmitterMaterial");
+                    if (ringEmitterMaterial != null)
+                    {
+                        ringEmitterMaterial.SetColor("_Color", directionRayColor);
+                        ringEmitterMaterial.SetColor("_EmissionColor", directionRayColor);
+                        ringEmitterMaterial.SetFloat("_EmissionStrength", 3.2f);
+                    }
+                }
+                Renderer renderer = emitter.GetComponent<Renderer>();
+                if (renderer != null && ringEmitterMaterial != null)
+                    renderer.sharedMaterial = ringEmitterMaterial;
+                ringEmitters.Add(emitter);
+            }
+            return ringEmitters[index];
+        }
+
+        private void BuildRingBase(float localY, float radius, float appleHeight, Color displayColor)
+        {
+            if (ringBase == null)
+            {
+                ringBase = new GameObject("RingLampAnnularBase");
+                ringBase.transform.SetParent(ringLightRig, false);
+                MeshFilter filter = ringBase.AddComponent<MeshFilter>();
+                MeshRenderer renderer = ringBase.AddComponent<MeshRenderer>();
+                ringBaseMesh = new Mesh { name = "RuntimeAnnularLampBaseMesh" };
+                ringBaseMesh.MarkDynamic();
+                filter.sharedMesh = ringBaseMesh;
+                ringBaseMaterial = CreateOptionalMaterial("FruitsimRig", "RuntimeAnnularLampBaseMaterial");
+                if (ringBaseMaterial != null)
+                {
+                    Color housing = new Color(0.07f, 0.09f, 0.12f, 1.0f);
+                    ringBaseMaterial.SetColor("_Color", housing);
+                    ringBaseMaterial.SetColor("_EmissionColor", displayColor * 0.12f);
+                    ringBaseMaterial.SetFloat("_EmissionStrength", 0.35f);
+                    renderer.sharedMaterial = ringBaseMaterial;
+                }
+            }
+
+            float tubeRadius = Mathf.Clamp(appleHeight * 0.032f, 0.018f, 0.09f);
+            float majorRadius = Mathf.Max(radius, tubeRadius * 2.5f);
+            const int radialSegments = 128;
+            const int tubeSegments = 12;
+            int vertexCount = (radialSegments + 1) * (tubeSegments + 1);
+            Vector3[] vertices = new Vector3[vertexCount];
+            Vector3[] normals = new Vector3[vertexCount];
+            Vector2[] uv = new Vector2[vertexCount];
+            int[] triangles = new int[radialSegments * tubeSegments * 6];
+            int vertex = 0;
+            for (int i = 0; i <= radialSegments; i++)
+            {
+                float phi = 2.0f * Mathf.PI * i / radialSegments;
+                float cosPhi = Mathf.Cos(phi);
+                float sinPhi = Mathf.Sin(phi);
+                for (int j = 0; j <= tubeSegments; j++)
+                {
+                    float theta = 2.0f * Mathf.PI * j / tubeSegments;
+                    float cosTheta = Mathf.Cos(theta);
+                    float sinTheta = Mathf.Sin(theta);
+                    float radial = majorRadius + tubeRadius * cosTheta;
+                    vertices[vertex] = new Vector3(radial * cosPhi, tubeRadius * sinTheta, radial * sinPhi);
+                    normals[vertex] = new Vector3(cosTheta * cosPhi, sinTheta, cosTheta * sinPhi).normalized;
+                    uv[vertex] = new Vector2((float)i / radialSegments, (float)j / tubeSegments);
+                    vertex++;
+                }
+            }
+            int triangle = 0;
+            for (int i = 0; i < radialSegments; i++)
+            {
+                for (int j = 0; j < tubeSegments; j++)
+                {
+                    int current = i * (tubeSegments + 1) + j;
+                    int next = (i + 1) * (tubeSegments + 1) + j;
+                    triangles[triangle++] = current;
+                    triangles[triangle++] = next;
+                    triangles[triangle++] = current + 1;
+                    triangles[triangle++] = current + 1;
+                    triangles[triangle++] = next;
+                    triangles[triangle++] = next + 1;
+                }
+            }
+            ringBaseMesh.Clear();
+            ringBaseMesh.vertices = vertices;
+            ringBaseMesh.normals = normals;
+            ringBaseMesh.uv = uv;
+            ringBaseMesh.triangles = triangles;
+            ringBaseMesh.RecalculateBounds();
+            ringBase.transform.localPosition = new Vector3(0.0f, localY, 0.0f);
+            ringBase.SetActive(true);
         }
 
         private void BuildCoaxialVisual(Vector3 center, float appleHeight)

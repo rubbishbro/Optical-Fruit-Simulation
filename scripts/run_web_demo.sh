@@ -11,7 +11,7 @@ journal="${FRUITSIM_GATEWAY_JOURNAL:-${repo_root}/results/web_demo/events.jsonl}
 
 if [[ ! -f "${web_root}/index.html" ]]; then
   echo "WebGL build not found: ${web_root}" >&2
-  echo "Run: bash scripts/build_fruitsim_unity_webgl.sh" >&2
+  echo "Run: bash scripts/build_unity.sh webgl" >&2
   exit 2
 fi
 

@@ -16,6 +16,11 @@ Every run is stored under `results/runs/<run_id>/`. The directory contains
 `manifest.json`, `status.json`, `artifacts.json` and optional `request.json`.
 Large numeric arrays use NPZ in v1; small tables use UTF-8 CSV.
 
+New demo run IDs use lowercase `context_kind_seed<seed>` names, such as
+`student_math_seed42` or `stage_acceptance_physical_seed42`. The directory
+basename must equal the `run_id` in its manifest; existing runs retain their
+original IDs.
+
 The manifest records the source type, seed, configuration hash, software
 versions, backend, coordinate transform, warning state and model status.
 Synthetic runs must contain a warning and cannot be marked

@@ -105,6 +105,20 @@
     return { labels, unique, index: new Map(unique.map((label, i) => [label, i])) };
   }
 
+  const STAGE_CHAPTERS = [
+    { title: '认识数据', stages: ['data_inspection'] },
+    { title: '预处理：SNV 标准化', stages: ['preprocessing'] },
+    { title: '特征分析：PCA 观察 / CARS 选波长', stages: ['feature_analysis', 'feature_selection'] },
+    { title: '建模预测：PLSR', stages: ['modeling'] },
+    { title: '验证结果', stages: ['results'] }
+  ];
+
+  function stageChapter(stageKey) {
+    let index = STAGE_CHAPTERS.findIndex((chapter) => chapter.stages.includes(stageKey));
+    if (index < 0) index = 0;
+    return { index, count: STAGE_CHAPTERS.length, title: STAGE_CHAPTERS[index].title };
+  }
+
   return {
     clamp,
     resolvePreprocessingTeachingStage,
@@ -112,6 +126,7 @@
     resolveStepIndex,
     interpolationAxisRange,
     buildResultsGraphModel,
-    categoricalGroups
+    categoricalGroups,
+    stageChapter
   };
 }));

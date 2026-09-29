@@ -1,0 +1,58 @@
+{
+  "seed": 20260922,
+  "photons_per_wavelength": 2500,
+  "accepted_paths_per_wavelength": 12,
+  "max_events": 160,
+  "boundary_samples": 12,
+  "boundary_epsilon_mm": 1.0e-6,
+  "layer_fractions": {
+    "core": 0.52,
+    "flesh": 0.84,
+    "skin": 1.0
+  },
+  "detector": {
+    "center_mm": [0.0, 0.0, -41.25],
+    "axis_toward_sample": [0.0, 0.0, 1.0],
+    "radius_mm": 10.47
+  },
+  "source": {
+    "type": "ring",
+    "center_mm": [0.0, 0.0, -45.0],
+    "plane_normal": [0.0, 0.0, 1.0],
+    "ring_radius_mm": 8.0,
+    "ring_width_mm": 1.5,
+    "emitter_count": 24,
+    "azimuth_jitter_deg": 3.0,
+    "direction_mode": "aim_at",
+    "target_mm": [0.0, 0.0, 0.0]
+  },
+  "guide": {
+    "base_probability": 0.30,
+    "skin_probability": 0.48,
+    "flesh_probability": 0.34,
+    "core_probability": 0.20,
+    "cone_half_angle_deg": 14.0,
+    "target_radius_margin": 0.92
+  },
+  "roulette": {
+    "threshold": 0.003,
+    "survival_probability": 0.15
+  },
+  "spectra": {
+    "650": {
+      "skin": {"mu_a_mm_inv": 0.042, "mu_s_prime_mm_inv": 0.35, "g": 0.82, "n": 1.36},
+      "flesh": {"mu_a_mm_inv": 0.022, "mu_s_prime_mm_inv": 0.30, "g": 0.82, "n": 1.36},
+      "core": {"mu_a_mm_inv": 0.018, "mu_s_prime_mm_inv": 0.26, "g": 0.78, "n": 1.35}
+    },
+    "800": {
+      "skin": {"mu_a_mm_inv": 0.033, "mu_s_prime_mm_inv": 0.34, "g": 0.82, "n": 1.36},
+      "flesh": {"mu_a_mm_inv": 0.017, "mu_s_prime_mm_inv": 0.29, "g": 0.82, "n": 1.36},
+      "core": {"mu_a_mm_inv": 0.014, "mu_s_prime_mm_inv": 0.25, "g": 0.78, "n": 1.35}
+    },
+    "950": {
+      "skin": {"mu_a_mm_inv": 0.048, "mu_s_prime_mm_inv": 0.33, "g": 0.82, "n": 1.36},
+      "flesh": {"mu_a_mm_inv": 0.029, "mu_s_prime_mm_inv": 0.28, "g": 0.82, "n": 1.36},
+      "core": {"mu_a_mm_inv": 0.024, "mu_s_prime_mm_inv": 0.24, "g": 0.78, "n": 1.35}
+    }
+  }
+}

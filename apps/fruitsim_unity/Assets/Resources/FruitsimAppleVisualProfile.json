@@ -1,0 +1,14 @@
+{
+  "schema": "fruitsim.apple-visual-profile.v1",
+  "source": "parameterized-presentation-profile",
+  "base_color": [0.58, 0.025, 0.012],
+  "alpha": 1.0,
+  "roughness": 0.46,
+  "metallic": 0.0,
+  "specular_ior_level": 0.5,
+  "ior": 1.45,
+  "spot_density": 0.06,
+  "normal_strength": 0.025,
+  "skin_transmission": 0.16,
+  "notes": "Opaque WebGL skin profile. Visual values do not alter NIR physical properties."
+}

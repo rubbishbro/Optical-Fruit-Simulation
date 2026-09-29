@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Globalization;
 using UnityEngine;
 
 namespace Fruitsim.UnityOptics
@@ -13,6 +15,7 @@ namespace Fruitsim.UnityOptics
         [SerializeField] private IlluminationRigController controller;
         [SerializeField] private Rect panelRect = new Rect(18.0f, 18.0f, 330.0f, 640.0f);
         private bool visible = true;
+        private readonly Dictionary<string, string> numericBuffers = new Dictionary<string, string>();
 
         private void Awake()
         {
@@ -75,21 +78,60 @@ namespace Fruitsim.UnityOptics
             }
             GUILayout.Space(8.0f);
             GUILayout.Label($"Rig rebuilds: {controller.RebuildCount}");
-            GUILayout.Label($"Pooled lights/rays: {controller.PooledLightCount}/{controller.PooledRayCount}");
+            GUILayout.Label($"Lights/rays/emitters: {controller.PooledLightCount}/{controller.PooledRayCount}/{controller.ActiveRingEmitterCount}");
             GUILayout.Label($"Last rebuild: {controller.LastRebuildMilliseconds:0.###} ms");
             GUILayout.EndArea();
         }
 
-        private static int IntSlider(string label, int value, int min, int max)
+        private int IntSlider(string label, int value, int min, int max)
         {
-            GUILayout.Label($"{label}: {value}");
-            return Mathf.RoundToInt(GUILayout.HorizontalSlider(value, min, max));
+            GUILayout.BeginHorizontal();
+            GUILayout.Label($"{label}: {value}", GUILayout.Width(170.0f));
+            int sliderValue = Mathf.RoundToInt(GUILayout.HorizontalSlider(value, min, max));
+            GUILayout.EndHorizontal();
+            return IntegerField(label, sliderValue, min, max);
         }
 
-        private static float Slider(string label, float value, float min, float max)
+        private float Slider(string label, float value, float min, float max)
         {
-            GUILayout.Label($"{label}: {value:0.###}");
-            return GUILayout.HorizontalSlider(value, min, max);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label($"{label}: {value:0.###}", GUILayout.Width(170.0f));
+            float sliderValue = GUILayout.HorizontalSlider(value, min, max);
+            GUILayout.EndHorizontal();
+            return FloatField(label, sliderValue, min, max);
+        }
+
+        private int IntegerField(string key, int value, int min, int max)
+        {
+            string controlName = $"FruitsimInteger_{key}";
+            if (!numericBuffers.ContainsKey(key) || GUI.GetNameOfFocusedControl() != controlName)
+                numericBuffers[key] = value.ToString(CultureInfo.InvariantCulture);
+            GUI.SetNextControlName(controlName);
+            numericBuffers[key] = GUILayout.TextField(numericBuffers[key]);
+            if (int.TryParse(numericBuffers[key], NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out int parsed))
+            {
+                parsed = Mathf.Clamp(parsed, min, max);
+                numericBuffers[key] = parsed.ToString(CultureInfo.InvariantCulture);
+                return parsed;
+            }
+            return value;
+        }
+
+        private float FloatField(string key, float value, float min, float max)
+        {
+            string controlName = $"FruitsimFloat_{key}";
+            if (!numericBuffers.ContainsKey(key) || GUI.GetNameOfFocusedControl() != controlName)
+                numericBuffers[key] = value.ToString("0.###", CultureInfo.InvariantCulture);
+            GUI.SetNextControlName(controlName);
+            numericBuffers[key] = GUILayout.TextField(numericBuffers[key]);
+            if (float.TryParse(numericBuffers[key], NumberStyles.Float,
+                    CultureInfo.InvariantCulture, out float parsed))
+            {
+                parsed = Mathf.Clamp(parsed, min, max);
+                return parsed;
+            }
+            return value;
         }
     }
 }

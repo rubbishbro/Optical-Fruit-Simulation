@@ -25,7 +25,8 @@ def main() -> int:
         prog="fruitsim-student",
         description="Run the small Fruitsim end-to-end demo: generate, audit, visualize, simulate.",
     )
-    parser.add_argument("--output-root", type=Path, default=Path("results/student_demo"))
+    parser.add_argument("--output-root", type=Path, default=Path("results/runs"))
+    parser.add_argument("--run-prefix", default="student", help="Prefix for generated run IDs")
     parser.add_argument("--seed", type=int, default=20260919)
     parser.add_argument(
         "--photons",
@@ -37,7 +38,7 @@ def main() -> int:
     args = parser.parse_args()
     output_root = args.output_root.resolve()
     output_root.mkdir(parents=True, exist_ok=True)
-    math_id = _fresh_id(output_root, "math", args.seed)
+    math_id = _fresh_id(output_root, f"{args.run_prefix}_math", args.seed)
     math_run = generate_math_run(
         output_root,
         math_id,
@@ -54,7 +55,7 @@ def main() -> int:
         binary = repo_root / "build-mesh" / "apps" / "fruitsim_cli" / "fruitsim_cli"
         config = repo_root / "configs" / "ring_sensor_demo.json"
         if binary.is_file() and config.is_file():
-            physical_id = _fresh_id(output_root, "physical", args.seed)
+            physical_id = _fresh_id(output_root, f"{args.run_prefix}_physical", args.seed)
             physical_run = generate_physical_run(
                 output_root,
                 physical_id,

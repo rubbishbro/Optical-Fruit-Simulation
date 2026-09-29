@@ -19,10 +19,50 @@ namespace Fruitsim.UnityOptics
     {
         // P1 runtime-active visual controls. They are intentionally independent
         // from ApplePhysicalProperties below.
-        public Color color = new Color(0.48f, 0.035f, 0.025f, 1.0f);
-        public float roughness = 0.68f;
-        public float spotDensity = 0.0f;
-        public float normalStrength = 0.0f;
+        // The Blender debug scene is a geometry export source, not the
+        // authority for apple appearance. These presentation defaults are a
+        // parameterized, opaque skin profile consumed by AppleSkin.shader.
+        // Physical/NIR properties remain independent below.
+        public Color color = new Color(0.58f, 0.025f, 0.012f, 1.0f);
+        public float roughness = 0.46f;
+        public float metallic = 0.0f;
+        public float specularIORLevel = 0.5f;
+        public float ior = 1.45f;
+        public float spotDensity = 0.06f;
+        public float normalStrength = 0.025f;
+        public float skinTransmission = 0.16f;
+
+        public static AppleVisualMaterial LoadBlenderDefaults()
+        {
+            AppleVisualMaterial fallback = new AppleVisualMaterial();
+            TextAsset asset = Resources.Load<TextAsset>("FruitsimAppleVisualProfile");
+            if (asset == null) return fallback;
+            BlenderPrincipledMaterialSpec spec = JsonUtility.FromJson<BlenderPrincipledMaterialSpec>(asset.text);
+            if (spec == null || spec.base_color == null || spec.base_color.Length < 3) return fallback;
+            fallback.color = new Color(spec.base_color[0], spec.base_color[1], spec.base_color[2], 1.0f);
+            fallback.roughness = spec.roughness;
+            fallback.metallic = spec.metallic;
+            fallback.specularIORLevel = spec.specular_ior_level;
+            fallback.ior = spec.ior;
+            fallback.spotDensity = spec.spot_density;
+            fallback.normalStrength = spec.normal_strength;
+            fallback.skinTransmission = spec.skin_transmission;
+            return fallback;
+        }
+    }
+
+    [Serializable]
+    internal sealed class BlenderPrincipledMaterialSpec
+    {
+        public float[] base_color;
+        public float alpha = 1.0f;
+        public float roughness = 0.5f;
+        public float metallic = 0.0f;
+        public float specular_ior_level = 0.5f;
+        public float ior = 1.5f;
+        public float spot_density = 0.06f;
+        public float normal_strength = 0.025f;
+        public float skin_transmission = 0.16f;
     }
 
     [Serializable]
@@ -59,7 +99,10 @@ namespace Fruitsim.UnityOptics
     {
         public string[] activeGeometryParameters = { "scale" };
         public string[] metadataOnlyGeometryParameters = { "heightRatio", "crownRatio", "asymmetry" };
-        public string[] activeVisualParameters = { "color", "roughness", "spotDensity", "normalStrength" };
+        public string[] activeVisualParameters =
+        {
+            "color", "roughness", "metallic", "specularIORLevel", "ior", "spotDensity", "normalStrength", "skinTransmission"
+        };
         public string[] metadataOnlyVisualParameters = { };
         public string[] metadataOnlyPhysicalParameters =
         {
