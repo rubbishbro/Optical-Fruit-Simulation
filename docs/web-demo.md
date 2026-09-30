@@ -5,7 +5,8 @@
 1. **光学仿真**：显示 Blender 导入的苹果、十二组环形灯具和探测器；支持拖动旋转、滚轮或按钮缩放、视角复位和全屏。
 2. **结果图像**：集中浏览吸收热力图、加权光子路径、光谱热力图、PCA、相关热力图、探测器响应、采样深度和能量审计。
 3. **ML 链路**：展示数据校验、数据划分、预处理、特征、候选模型与独立验证。它读取随仓库提交的预计算合成教学 bundle，不在浏览器内重新训练或调用 C++ transport。
-4. **运行与审计**：保留 Gateway 连接、Run 启动、状态推进、事件重放和服务端结果路径。
+4. **运行与审计**：保留 Gateway 连接、Run 启动、状态推进、事件重放，并新增“本次 Run 数据”面板，
+   完成后在同一页面读取/下载该 Run 的已登记产物（samples、spectra 等）。
 
 ## Unity 交互接口
 
@@ -21,6 +22,35 @@
 Unity WebGL 的预编译只固定程序代码，页面仍可实时传入光学和苹果参数。Manim 生成的是视频；播放时只能控制进度，视频内的数据、文字和镜头已固定。因此动画参数必须在渲染前确定，不能把每次滑块变化直接当作一次 Manim 渲染。
 
 目前的真实链路是：光学表单 → `ApplyWebParameters` → Unity 场景即时变化；波长另发 `viewer.set_wavelength`。`run.start` 只提交数学数据生成的 `seed` 和 `samples`，不提交光学表单参数。`scripts/research/render_snv_teaching_animation.py` 使用固定的合成光谱，也没有读取 Run 或页面参数。因此当前尚无“页面参数 → 对应计算结果 → Manim 视频”的闭环。
+
+## 三类来源与本次 Run 结果（第三批）
+
+页面明确区分三类来源，互不冒充：
+
+- **实时装置预览（Unity，非计算结果）**：光学表单驱动的 Unity 场景即时变化。
+- **预计算教学图（非本次 Run）**：结果图表页的 `static/*.png`；**预计算合成教学数据**：ML 页随仓库提交的五组 bundle。
+- **本次 Run 数据**：运行页“本次 Run 数据”面板读取当前 Run 的产物。
+
+运行完成后，静态服务器（由 `run_web_demo.sh` 以 `--runs-root <output_root>` 启用）提供受限同源接口：
+
+```text
+GET/HEAD /api/runs/<run_id>                          → manifest 摘要 + 登记产物与相对 URL
+GET/HEAD /api/runs/<run_id>/artifacts/<artifact_id>  → 下载已登记且白名单 media_type/role 的文件
+```
+
+安全边界：仅服务 `artifacts.json` 登记且媒体类型/role 在白名单内的文件；拒绝路径穿越、单/双 URL 编码穿越、
+斜杠/反斜杠、`.`/`..`、目录形态、跨 Run、run 与 file 符号链接逃逸、未登记文件，以及 `request.json`/日志
+（含指向它们的符号链接别名）。manifest/status/artifacts 三份 metadata 必须为常规文件（符号链接、schema_version 不符、
+`run_id` 与 URL 不一致均返回 503；缺失 status/artifacts 不再凭 manifest 假称完整）。摘要不返回服务器绝对路径或
+`request.output_dir`，并给出 `complete/terminal/succeeded` 与 `configuration_hash`。未传 `--runs-root` 时接口整体 404。
+gzip/brotli、wasm MIME 与 `/health` 行为不退化。artifact 下载先校验 Run 身份与 metadata，再以流式方式发送；HEAD 不读整文件。
+
+前端对结果请求使用 `run_id` 身份 + generation 计数双重校验：开始新任务即清空旧产物；过期或身份不符的响应被丢弃
+（身份不符显示可重试错误）；CSV 预览用独立 token 防止旧响应覆盖；失败显示原因并可重试；链接必须精确等于本 Run 的
+`/api/runs/<id>/artifacts/<artifact_id>`；math Run 没有新图表/模型时明确显示“未登记可下载的数据产物”，
+不回退到预计算图伪装成功。CSV 预览以 `textContent` 渲染。
+
+**注意**：本闭环是“网页任务 → 数学 Run → 本次数据产物可见”，**不是** Unity 参数 → C++ transport → SSC 模型。
 
 拟采用一份不可变的参数快照作为计算和动画的共同依据：
 
@@ -60,6 +90,23 @@ bash scripts/build_unity.sh webgl
 # 3. 启动静态服务与 Gateway，浏览器打开 http://<host>:8080
 bash scripts/run_web_demo.sh
 ```
+
+`run_web_demo.sh` 会把同一个输出根目录传给 Gateway 与静态服务（`--runs-root`），因此运行页能读取刚创建的 Run。
+验证入口：
+
+```bash
+# Python 契约/编排/Runs API/脚本级集成
+PYTHONPATH=python python -m unittest discover -s python/tests -p 'test_*.py' -v
+
+# 前端真实 DOM（状态隔离/输入拒绝/连接失败/结果竞态，stub 事件）
+PYTHONPATH=python python scripts/tests/test_demo_browser.py
+
+# 真实 Gateway + HTTP 结果接口 + 真实 Chrome A/B 集成
+PYTHONPATH=python python scripts/tests/test_demo_e2e.py
+```
+
+浏览器 A/B runner 会临时启动 Gateway 与静态服务，并通过 URL 参数注入 Gateway 端口（无全局配置）。
+本环境无 Unity 编辑器，浏览器中 Unity 场景仍处于“载入失败”，数学 Run 与 ML/DOM 页面可用；Unity 实机表现待验收。
 
 `build_unity.sh` 读取 `apps/fruitsim_unity/ProjectSettings/ProjectVersion.txt`（当前
 `6000.3.23f1`），优先在 Unity Hub 安装目录中查找同版本编辑器，可用 `UNITY_BIN` 覆盖；

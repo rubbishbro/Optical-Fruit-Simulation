@@ -114,7 +114,7 @@
   </header>
   <main>
     <section id="page-simulation" class="view active">
-      <div class="view-title"><div><h2>三维光学装置</h2><p>环形光源照射果实，探测器接收出射光；拖动旋转，滚轮缩放。</p></div><span id="unity-state" class="tag">载入中</span></div>
+      <div class="view-title"><div><h2>三维光学装置</h2><p>环形光源照射果实，探测器接收出射光；拖动旋转，滚轮缩放。</p></div><span class="tag" id="unity-source-tag">实时装置预览（Unity，非计算结果）</span><span id="unity-state" class="tag">载入中</span></div>
       <div class="sim-grid">
         <div class="sheet viewer">
           <div class="viewer-bar"><strong>环形光照与探测器</strong><button id="zoom-in" class="small-button">放大</button><button id="zoom-out" class="small-button">缩小</button><button id="reset-view" class="small-button">复位视角</button><button id="fullscreen" class="small-button">全屏</button></div>
@@ -129,22 +129,26 @@
           <div class="param-row"><label for="incident-angle">光源倾角</label><input id="incident-angle" type="number" value="35" min="0" max="89"><span>°</span></div>
           <div class="param-row"><label for="divergence">光束发散半角</label><input id="divergence" type="number" value="12" min="0" max="90"><span>°</span></div>
           <div class="param-row"><label for="optical-power">相对光功率</label><input id="optical-power" type="number" value="1" min="0" max="10" step="0.1"><span>倍</span></div>
-          <div class="param-row"><label for="sensor-radius">探测器半径 / 果实半径</label><input id="sensor-radius" type="number" value="0.35" min="0.01" max="0.5" step="0.01"><span>倍</span></div>
+          <div class="param-row"><label for="sensor-radius">探测器半径 / 果实高度</label><input id="sensor-radius" type="number" value="0.35" min="0.01" max="0.5" step="0.01"><span>倍</span></div>
           <div class="param-row"><label for="sensor-offset">探测器偏移 / 果实高度</label><input id="sensor-offset" type="number" value="0.18" min="0.01" max="0.75" step="0.01"><span>倍</span></div>
           <div class="param-row"><label for="sensor-fov">探测器视场角</label><input id="sensor-fov" type="number" value="70" min="1" max="180"><span>°</span></div>
           <div class="param-row check"><label for="show-rays">显示方向光线</label><input id="show-rays" type="checkbox" checked></div>
           <button id="apply-optics" class="primary">应用参数到 Unity</button>
-          <p id="parameter-status" class="note">780–1100 nm 在显示器上以暗红色显示；颜色仅用于区分波段。</p>
+          <p id="parameter-status" class="note">尚未应用参数。</p>
+          <p id="nir-note" class="note">780–1100 nm 在显示器上以暗红色显示；颜色仅用于区分波段。</p>
+          <p id="detector-note" class="note">探测器半径按果实高度缩放（SensorModel），导入的探测器模型为固定尺寸，不随参数或视场角实时改变。</p>
           <details class="apple-generator" open>
             <summary>生成果实样本</summary>
-            <p class="note">外观参数控制模型形状和材质；光学参数作为样本记录保存，不会自动改变外观。</p>
+            <p class="note">外观参数控制模型材质；光学参数作为样本记录保存，不会自动改变外观。</p>
+            <p class="note" id="apple-capability-note">高宽比例、顶部凹凸、形状不对称度当前仅记录，不改变几何；随机种子用于可复现的参数序列，不生成新的果实形状。生成果实目前只改变整体大小与位置。</p>
+            <p class="note" id="apple-physical-note">糖度、含水率、吸收/散射比例与组织折射率仅作为样本元数据保存，本次不会传入光传输计算。</p>
             <div class="apple-form-grid">
               <label>随机种子<input id="apple-seed" type="number" value="20260920"></label>
               <label>生成数量<input id="apple-batch-count" type="number" value="1" min="1" max="32"></label>
               <label>整体大小<input id="apple-scale" type="number" value="1" min="0.01" step="0.01"></label>
-              <label>高宽比例<input id="apple-height-ratio" type="number" value="1" step="0.01"></label>
-              <label>顶部凹凸<input id="apple-crown-ratio" type="number" value="0.08" step="0.01"></label>
-              <label>形状不对称度<input id="apple-asymmetry" type="number" value="0" step="0.01"></label>
+              <label>高宽比例<input id="apple-height-ratio" type="number" value="1" step="0.01" disabled title="仅记录，不改变几何"></label>
+              <label>顶部凹凸<input id="apple-crown-ratio" type="number" value="0.08" step="0.01" disabled title="仅记录，不改变几何"></label>
+              <label>形状不对称度<input id="apple-asymmetry" type="number" value="0" step="0.01" disabled title="仅记录，不改变几何"></label>
               <label>颜色<input id="apple-color" type="color" value="#940603"></label>
               <label>表面粗糙度<input id="apple-roughness" type="number" value="0.46" min="0" max="1" step="0.01"></label>
               <label>金属感<input id="apple-metallic" type="number" value="0" min="0" max="1" step="0.01"></label>
@@ -162,7 +166,8 @@
               <label>位置 Y<input id="apple-pos-y" type="number" value="0" step="0.05"></label>
               <label>位置 Z<input id="apple-pos-z" type="number" value="0" step="0.05"></label>
             </div>
-            <div class="button-row"><button id="generate-apple" class="primary">生成一个</button><button id="generate-batch">批量生成</button><button id="clear-apples">清除样本</button></div>
+            <div class="button-row"><button id="generate-apple" class="primary">生成一个</button><button id="generate-batch" disabled title="批量陈列尚未实现：当前同位置重叠，控制器只跟随最后一个样本">批量生成（暂不可用）</button><button id="clear-apples">清除样本</button></div>
+            <p id="apple-batch-note" class="note">批量生成暂不可用：当前所有样本使用同一位置会相互重叠，控制器只跟随最后一个样本。底层 GenerateBatchJson 接口保留，待有 Unity 陈列验收后再开放。</p>
             <p id="apple-status" class="note">等待生成样本。</p>
             <code id="apple-sample-id" class="apple-sample-id">样本编号：-</code>
           </details>
@@ -170,7 +175,7 @@
       </div>
     </section>
     <section id="page-figures" class="view">
-      <div class="view-title"><div><h2>仿真与数据图表</h2><p>选择图表查看光传输模拟和合成光谱数据。</p></div></div>
+      <div class="view-title"><div><h2>仿真与数据图表</h2><p>选择图表查看光传输模拟和合成光谱数据。</p></div><span class="tag" id="figures-source-tag">预计算教学图（非本次 Run）</span></div>
       <div class="figure-grid"><aside id="figure-menu" class="sheet figure-menu" aria-label="图像选择"></aside><article class="sheet figure-stage"><h3 id="figure-title"></h3><p id="figure-note"></p><img id="figure-image" alt="Fruitsim 仿真结果图"></article></div>
       <div class="boundary">光子路径与吸收分布来自数值模拟，不是果实内部的真实成像。合成光谱仅用于演示分析方法。</div>
     </section>
@@ -223,43 +228,496 @@
       <div id="ml-toast" class="ml-toast" hidden></div>
     </section>
     <section id="page-run" class="view">
-      <div class="view-title"><div><h2>运行状态</h2><p>生成可重复的演示数据，并查看计算进度。</p></div></div>
-      <div class="run-grid"><div class="sheet run-controls"><div class="form-row"><label for="run-id">任务名称</label><input id="run-id" value="web_demo_seed20260920"></div><div class="form-row"><label for="seed">随机种子</label><input id="seed" type="number" value="20260920"></div><div class="form-row"><label for="samples">样本数量</label><select id="samples"><option value="60">60 · 快速</option><option value="120" selected>120 · 标准</option><option value="300">300 · 详细</option></select></div><input id="gateway-port" type="hidden" value="8765"><div class="button-row"><button id="connect-btn">连接计算服务</button><button id="start-btn" class="run">开始计算</button></div><div class="button-row"><button id="cancel-btn">取消任务</button><button id="replay-btn">查看运行记录</button></div><p class="note">运行结果会保存在项目的结果目录中，可在图表页面查看。</p></div><div class="sheet run-log"><div class="status-table"><div><span>计算服务</span><strong id="gateway-state">未连接</strong></div><div><span>记录数</span><strong id="last-seq">0</strong></div><div><span>状态</span><strong id="run-state">待机</strong></div><div><span>当前步骤</span><strong id="run-stage">-</strong></div><div class="run-path-status"><span>结果位置</span><strong id="run-path">-</strong></div></div><div id="event-log">尚无运行记录。</div></div></div>
+      <div class="view-title"><div><h2>运行状态</h2><p>生成可重复的演示数据，并查看计算进度与本次 Run 产物。</p></div></div>
+      <div class="run-grid"><div class="sheet run-controls"><div class="form-row"><label for="run-id">任务名称</label><input id="run-id" value="" placeholder="留空自动生成唯一名称"></div><div class="form-row"><label for="seed">随机种子</label><input id="seed" type="number" value="20260920"></div><div class="form-row"><label for="samples">样本数量</label><select id="samples"><option value="60">60 · 快速</option><option value="120" selected>120 · 标准</option><option value="300">300 · 详细</option></select></div><input id="gateway-port" type="hidden" value="8765"><div class="button-row"><button id="connect-btn">连接计算服务</button><button id="start-btn" class="run">开始计算</button></div><div class="button-row"><button id="cancel-btn">取消任务</button><button id="replay-btn">查看运行记录</button></div><p id="run-feedback" class="note" role="status">尚未提交任务。</p><p class="note">运行结果由计算服务保存在服务器结果目录中，本次运行不会自动改写“结果图表”页的预计算示例。</p></div><div class="sheet run-log"><div class="status-table"><div><span>计算服务</span><strong id="gateway-state">未连接</strong></div><div><span>记录数</span><strong id="last-seq">0</strong></div><div><span>状态</span><strong id="run-state">待机</strong></div><div><span>当前步骤</span><strong id="run-stage">-</strong></div><div class="run-path-status"><span>结果位置</span><strong id="run-path">-</strong></div></div><div id="event-log">尚无运行记录。</div></div></div>
+      <div class="sheet run-results" id="run-results">
+        <div class="view-title"><div><h3>本次 Run 数据</h3><p class="note" id="run-results-note">运行完成后可查看本次 Run 的数据产物；结果图表与 ML 页仍是预计算教学示例。</p></div><button id="load-results-btn" disabled>查看本次数据产物</button></div>
+        <div id="run-results-summary"></div>
+        <div id="run-results-artifacts"></div>
+        <pre id="run-results-preview" hidden></pre>
+        <p class="note" id="run-results-sources">来源：本次 Run（服务端保存的实际数据产物）。本页不会自动生成新的图表或 ML 模型，也不会改写预计算教学示例。</p>
+      </div>
     </section>
   </main>
+  <script src="static/demo_runtime.js"></script>
   <script>
-    const canvas=document.querySelector('#unity-canvas'),connection=document.querySelector('#connection'),gatewayState=document.querySelector('#gateway-state'),logBox=document.querySelector('#event-log'),unityState=document.querySelector('#unity-state');
-    let gateway=null,lastSeq=0,unityInstance=null;
-    document.querySelectorAll('nav button').forEach(button=>button.onclick=()=>{document.querySelectorAll('nav button').forEach(item=>item.classList.toggle('active',item===button));document.querySelectorAll('.view').forEach(view=>view.classList.toggle('active',view.id===`page-${button.dataset.page}`));if(button.dataset.page==='simulation'&&unityInstance)setTimeout(()=>window.dispatchEvent(new Event('resize')),0);});
-    const figures=[['吸收分布','static/absorption_heatmap.png','截面内的吸收能量分布；颜色表示相对强度。'],['光子传播路径','static/photon_paths.png','模拟光子在果皮和果肉中的传播轨迹。'],['样本 × 波长反射率','static/spectra_heatmap.png','查看不同样本的反射率如何随波长变化。'],['代表性光谱','static/spectra_overview.png','多条样本光谱与平均曲线。'],['PCA 样本分布','static/pca_scatter.png','将光谱投影到前两个主成分；颜色表示合成糖度代理值。'],['波长与糖度关系','static/proxy_correlation_heatmap.png','各波长反射率与合成糖度代理值的相关性，不代表因果关系。'],['探测器响应','static/detector_spectrum.png','探测器接收的反射信号与有效光子数。'],['探测深度','static/detector_path_statistics.png','有效光子的平均穿透深度及果肉内传播比例。'],['能量守恒检查','static/energy_audit.png','比较入射能量与反射、透射、吸收及损失能量之和。']];
-    const figureMenu=document.querySelector('#figure-menu');
-    function showFigure(index){const[title,src,note]=figures[index];document.querySelector('#figure-title').textContent=title;document.querySelector('#figure-note').textContent=note;document.querySelector('#figure-image').src=src;document.querySelectorAll('#figure-menu button').forEach((button,i)=>button.classList.toggle('active',i===index));}
-    figures.forEach((figure,index)=>{const button=document.createElement('button');button.textContent=`${String(index+1).padStart(2,'0')}  ${figure[0]}`;button.onclick=()=>showFigure(index);figureMenu.appendChild(button);});showFigure(0);
-    function sendUnity(objectName,method,value){if(!unityInstance)return false;if(value===undefined)unityInstance.SendMessage(objectName,method);else unityInstance.SendMessage(objectName,method,value);return true;}
-    function numberValue(id){const value=Number(document.querySelector(`#${id}`).value);return Number.isFinite(value)?value:0;}
-    function appleColor(){const value=document.querySelector('#apple-color').value.replace('#','');const rgb=parseInt(value,16);return{r:((rgb>>16)&255)/255,g:((rgb>>8)&255)/255,b:(rgb&255)/255,a:1};}
-    function applePayload(seed){return{seed:seed===undefined?numberValue('apple-seed'):seed,geometry:{scale:numberValue('apple-scale'),heightRatio:numberValue('apple-height-ratio'),crownRatio:numberValue('apple-crown-ratio'),asymmetry:numberValue('apple-asymmetry')},visualMaterial:{color:appleColor(),roughness:numberValue('apple-roughness'),metallic:numberValue('apple-metallic'),specularIORLevel:numberValue('apple-specular-ior'),ior:numberValue('apple-ior'),spotDensity:numberValue('apple-spot-density'),normalStrength:numberValue('apple-normal-strength'),skinTransmission:numberValue('apple-skin-transmission')},physical:{sscBrix:numberValue('apple-ssc'),waterContent:numberValue('apple-water'),absorptionScale:numberValue('apple-absorption'),reducedScatteringScale:numberValue('apple-scattering'),refractiveIndex:numberValue('apple-ri')},pose:{position:{x:numberValue('apple-pos-x'),y:numberValue('apple-pos-y'),z:numberValue('apple-pos-z')},eulerAngles:{x:0,y:0,z:0}}};}
-    function appleStatus(text){document.querySelector('#apple-status').textContent=text;}
-    window.FruitsimAppleGenerated=function(sampleId){document.querySelector('#apple-sample-id').textContent=`样本编号：${sampleId}`;appleStatus('样本已生成，外观参数已应用。');};
-    window.FruitsimAppleBatchGenerated=function(ids){const values=String(ids||'').split(',').filter(Boolean);document.querySelector('#apple-sample-id').textContent=`样本编号：${values.join('、')}`;appleStatus(`已生成 ${values.length} 个样本，随机种子起点为 ${numberValue('apple-seed')}。`);};
-    window.FruitsimAppleGenerationFailed=function(){appleStatus('样本生成失败，请检查参数后重试。');};
-    window.FruitsimAppleCleared=function(){document.querySelector('#apple-sample-id').textContent='样本编号：-';appleStatus('已清除生成的样本。');};
-    document.querySelector('#generate-apple').onclick=()=>{const sent=sendUnity('FruitsimOpticsExperiment','GenerateAppleJson',JSON.stringify(applePayload()));if(!sent)appleStatus('三维场景尚未就绪。');};
-    document.querySelector('#generate-batch').onclick=()=>{const count=Math.max(1,Math.min(32,Math.round(numberValue('apple-batch-count'))));const payload={count,base_seed:Math.round(numberValue('apple-seed')),request:applePayload(Math.round(numberValue('apple-seed')))};const sent=sendUnity('FruitsimOpticsExperiment','GenerateBatchJson',JSON.stringify(payload));if(!sent)appleStatus('三维场景尚未就绪。');};
-    document.querySelector('#clear-apples').onclick=()=>{const sent=sendUnity('FruitsimOpticsExperiment','ClearGenerated');appleStatus(sent?'正在清除样本…':'三维场景尚未就绪。');};
-    document.querySelector('#zoom-in').onclick=()=>sendUnity('FruitsimOrbitCamera','ZoomIn');document.querySelector('#zoom-out').onclick=()=>sendUnity('FruitsimOrbitCamera','ZoomOut');document.querySelector('#reset-view').onclick=()=>sendUnity('FruitsimOrbitCamera','ResetView');document.querySelector('#fullscreen').onclick=()=>document.querySelector('#unity-container').requestFullscreen();
-    function applyOptics(){const payload={light_count:Math.max(1,Math.min(64,Math.round(numberValue('light-count')))),wavelength_nm:numberValue('wavelength'),ring_radius_ratio:numberValue('ring-radius'),ring_height_ratio:numberValue('ring-height'),incident_angle_deg:numberValue('incident-angle'),beam_divergence_deg:numberValue('divergence'),optical_power:numberValue('optical-power'),sensor_radius_ratio:numberValue('sensor-radius'),sensor_offset_ratio:numberValue('sensor-offset'),sensor_fov_deg:numberValue('sensor-fov'),show_rays:document.querySelector('#show-rays').checked};const sent=sendUnity('FruitsimOpticsExperiment','ApplyWebParameters',JSON.stringify(payload));document.querySelector('#parameter-status').textContent=sent?`参数已应用：${payload.light_count} 个光源，${payload.wavelength_nm} nm，倾角 ${payload.incident_angle_deg}°。`:'三维场景尚未就绪。';command('viewer.set_wavelength',{wavelength_nm:payload.wavelength_nm},document.querySelector('#run-id').value.trim(),true);}
-    document.querySelector('#apply-optics').onclick=applyOptics;
-    ['light-count','wavelength','ring-radius','ring-height','incident-angle','divergence','optical-power','sensor-radius','sensor-offset','sensor-fov','show-rays'].forEach(id=>document.querySelector(`#${id}`).addEventListener('change',applyOptics));
-    function setConnection(text,online){const labels={connecting:'连接中',connected:'已连接',offline:'未连接',error:'连接失败'};connection.textContent=`计算服务${labels[text]||text}`;connection.classList.toggle('online',!!online);gatewayState.textContent=labels[text]||text;}
-    function log(message){const time=new Date().toLocaleTimeString();if(logBox.textContent==='尚无运行记录。')logBox.textContent='';logBox.textContent+=`[${time}] ${message}\n`;logBox.scrollTop=logBox.scrollHeight;}
-    function gatewayUrl(){const scheme=location.protocol==='https:'?'wss':'ws';return`${scheme}://${location.hostname}:${Number(document.querySelector('#gateway-port').value)||8765}`;}
-    function command(name,payload,runId,quiet=false){if(!gateway||gateway.readyState!==WebSocket.OPEN){if(!quiet)log('计算服务未连接，无法发送任务。');return;}const message={protocol:1,type:'command',command_id:`web-${Date.now()}-${Math.random().toString(16).slice(2)}`,name,run_id:runId||null,payload:payload||{},client_ts:new Date().toISOString()};gateway.send(JSON.stringify(message));log('已发送计算请求。');}
-    function friendlyStage(value){const labels={accepted:'准备数据',configuration:'载入参数',simulation:'光传输模拟',visualization:'生成图表',audit:'结果检查',complete:'完成',failed:'失败',cancelled:'已取消'};return labels[value]||String(value||'-').replaceAll('_',' ');}
-    function friendlyStatus(value){const labels={idle:'待机',queued:'排队中',running:'运行中',completed:'已完成',failed:'失败',cancelled:'已取消'};return labels[value]||String(value||'待机');}
-    function connect(){if(gateway&&gateway.readyState===WebSocket.OPEN){gateway.close();return;}setConnection('connecting',false);gateway=new WebSocket(gatewayUrl());gateway.onopen=()=>{setConnection('connected',true);log('已连接计算服务。');gateway.send(JSON.stringify({type:'replay',after_seq:lastSeq}));};gateway.onclose=()=>setConnection('offline',false);gateway.onerror=()=>{setConnection('error',false);log('计算服务连接失败。');};gateway.onmessage=event=>{let message;try{message=JSON.parse(event.data);}catch(_){log('收到无法识别的服务响应。');return;}if(message.type==='hello'){lastSeq=Math.max(lastSeq,message.latest_seq||0);document.querySelector('#last-seq').textContent=lastSeq;return;}if(message.type==='command_ack'){log(message.accepted?'任务已接收。':'任务未能启动，请检查参数。');return;}if(message.type==='event'){lastSeq=Math.max(lastSeq,message.seq||0);document.querySelector('#last-seq').textContent=lastSeq;const p=message.payload||{};document.querySelector('#run-state').textContent=friendlyStatus(message.status);document.querySelector('#run-stage').textContent=friendlyStage(message.stage);if(p.run_dir)document.querySelector('#run-path').textContent=p.run_dir;log(`计算进度：${friendlyStage(message.stage)} · ${friendlyStatus(message.status)}`);}};}
-    document.querySelector('#connect-btn').onclick=connect;document.querySelector('#start-btn').onclick=()=>command('run.start',{mode:'math',seed:Number(document.querySelector('#seed').value),samples:Number(document.querySelector('#samples').value)},document.querySelector('#run-id').value.trim());document.querySelector('#cancel-btn').onclick=()=>command('run.cancel',{},document.querySelector('#run-id').value.trim());document.querySelector('#replay-btn').onclick=()=>{if(gateway&&gateway.readyState===WebSocket.OPEN)gateway.send(JSON.stringify({type:'replay',after_seq:0}));};
-    const buildUrl='Build',loaderUrl=buildUrl+'/{{{ LOADER_FILENAME }}}';const config={dataUrl:buildUrl+'/{{{ DATA_FILENAME }}}',frameworkUrl:buildUrl+'/{{{ FRAMEWORK_FILENAME }}}',codeUrl:buildUrl+'/{{{ CODE_FILENAME }}}',streamingAssetsUrl:'StreamingAssets',companyName:'Fruitsim',productName:'Fruitsim Research Workbench',productVersion:'0.2',showBanner:(msg,type)=>log('三维场景提示：'+msg),devicePixelRatio:1};const script=document.createElement('script');script.src=loaderUrl;script.onload=()=>createUnityInstance(canvas,config,progress=>{document.querySelector('#progress div').style.width=`${progress*100}%`;}).then(instance=>{unityInstance=instance;document.querySelector('#loading').style.display='none';unityState.textContent='已就绪';log('三维场景已就绪。');}).catch(()=>{unityState.textContent='载入失败';log('三维场景载入失败，请重新打开页面。');});document.body.appendChild(script);
+    const FruitsimDemo = window.FruitsimDemo;
+    const canvas = document.querySelector('#unity-canvas');
+    const connection = document.querySelector('#connection');
+    const gatewayState = document.querySelector('#gateway-state');
+    const logBox = document.querySelector('#event-log');
+    const unityState = document.querySelector('#unity-state');
+    const parameterStatus = document.querySelector('#parameter-status');
+    const runFeedback = document.querySelector('#run-feedback');
+    const resultsSummary = document.querySelector('#run-results-summary');
+    const resultsArtifacts = document.querySelector('#run-results-artifacts');
+    const resultsPreview = document.querySelector('#run-results-preview');
+    const resultsNote = document.querySelector('#run-results-note');
+    const loadResultsBtn = document.querySelector('#load-results-btn');
+    const runStateEl = document.querySelector('#run-state');
+    const runStageEl = document.querySelector('#run-stage');
+    const runPathEl = document.querySelector('#run-path');
+    const lastSeqEl = document.querySelector('#last-seq');
+    const connectBtn = document.querySelector('#connect-btn');
+    const startBtn = document.querySelector('#start-btn');
+    const cancelBtn = document.querySelector('#cancel-btn');
+    const replayBtn = document.querySelector('#replay-btn');
+    let gateway = null;
+    let unityInstance = null;
+    let connectGeneration = 0;
+    let socketErrored = false;
+    let connectionKind = 'offline';
+    let pendingRunStartMessage = null;
+    const runTracker = FruitsimDemo.createRunTracker();
+    // Test/ops convenience only: allow the Gateway port to be supplied by query
+    // string (no global config). Normal use keeps the hidden input default.
+    const demoQuery = new URLSearchParams(location.search);
+    if (demoQuery.has('gateway_port')) {
+      const portInput = document.querySelector('#gateway-port');
+      if (portInput) portInput.value = demoQuery.get('gateway_port');
+    }
+
+    document.querySelectorAll('nav button').forEach(button => button.onclick = () => { document.querySelectorAll('nav button').forEach(item => item.classList.toggle('active', item === button)); document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === `page-${button.dataset.page}`)); if (button.dataset.page === 'simulation' && unityInstance) setTimeout(() => window.dispatchEvent(new Event('resize')), 0); });
+    const figures = [['吸收分布', 'static/absorption_heatmap.png', '截面内的吸收能量分布；颜色表示相对强度。'], ['光子传播路径', 'static/photon_paths.png', '模拟光子在果皮和果肉中的传播轨迹。'], ['样本 × 波长反射率', 'static/spectra_heatmap.png', '查看不同样本的反射率如何随波长变化。'], ['代表性光谱', 'static/spectra_overview.png', '多条样本光谱与平均曲线。'], ['PCA 样本分布', 'static/pca_scatter.png', '将光谱投影到前两个主成分；颜色表示合成糖度代理值。'], ['波长与糖度关系', 'static/proxy_correlation_heatmap.png', '各波长反射率与合成糖度代理值的相关性，不代表因果关系。'], ['探测器响应', 'static/detector_spectrum.png', '探测器接收的反射信号与有效光子数。'], ['探测深度', 'static/detector_path_statistics.png', '有效光子的平均穿透深度及果肉内传播比例。'], ['能量守恒检查', 'static/energy_audit.png', '比较入射能量与反射、透射、吸收及损失能量之和。']];
+    const figureMenu = document.querySelector('#figure-menu');
+    function showFigure(index) { const [title, src, note] = figures[index]; document.querySelector('#figure-title').textContent = title; document.querySelector('#figure-note').textContent = note; document.querySelector('#figure-image').src = src; document.querySelectorAll('#figure-menu button').forEach((button, i) => button.classList.toggle('active', i === index)); }
+    figures.forEach((figure, index) => { const button = document.createElement('button'); button.textContent = `${String(index + 1).padStart(2, '0')}  ${figure[0]}`; button.onclick = () => showFigure(index); figureMenu.appendChild(button); }); showFigure(0);
+    function sendUnity(objectName, method, value) { if (!unityInstance) return false; if (value === undefined) unityInstance.SendMessage(objectName, method); else unityInstance.SendMessage(objectName, method, value); return true; }
+    function numberValue(id) { const value = Number(document.querySelector(`#${id}`).value); return Number.isFinite(value) ? value : 0; }
+    function appleColor() { const value = document.querySelector('#apple-color').value.replace('#', ''); const rgb = parseInt(value, 16); return { r: ((rgb >> 16) & 255) / 255, g: ((rgb >> 8) & 255) / 255, b: (rgb & 255) / 255, a: 1 }; }
+    function applePayload(seed) { return { seed: seed === undefined ? numberValue('apple-seed') : seed, geometry: { scale: numberValue('apple-scale'), heightRatio: numberValue('apple-height-ratio'), crownRatio: numberValue('apple-crown-ratio'), asymmetry: numberValue('apple-asymmetry') }, visualMaterial: { color: appleColor(), roughness: numberValue('apple-roughness'), metallic: numberValue('apple-metallic'), specularIORLevel: numberValue('apple-specular-ior'), ior: numberValue('apple-ior'), spotDensity: numberValue('apple-spot-density'), normalStrength: numberValue('apple-normal-strength'), skinTransmission: numberValue('apple-skin-transmission') }, physical: { sscBrix: numberValue('apple-ssc'), waterContent: numberValue('apple-water'), absorptionScale: numberValue('apple-absorption'), reducedScatteringScale: numberValue('apple-scattering'), refractiveIndex: numberValue('apple-ri') }, pose: { position: { x: numberValue('apple-pos-x'), y: numberValue('apple-pos-y'), z: numberValue('apple-pos-z') }, eulerAngles: { x: 0, y: 0, z: 0 } } }; }
+    function appleStatus(text) { document.querySelector('#apple-status').textContent = text; }
+    function readAppleActiveValues() {
+      const values = {};
+      values['apple-seed'] = document.querySelector('#apple-seed').value;
+      Object.keys(FruitsimDemo.APPLE_ACTIVE_FIELDS).forEach(id => { const el = document.querySelector(`#${id}`); values[id] = el ? el.value : ''; });
+      return values;
+    }
+    function markAppleInvalid(errors) {
+      ['apple-seed', ...Object.keys(FruitsimDemo.APPLE_ACTIVE_FIELDS)].forEach(id => {
+        const el = document.querySelector(`#${id}`);
+        if (!el) return;
+        if (errors[id]) { el.setAttribute('aria-invalid', 'true'); el.title = errors[id]; }
+        else { el.removeAttribute('aria-invalid'); el.removeAttribute('title'); }
+      });
+    }
+    function applePayloadFrom(checked, seed) {
+      return {
+        seed,
+        geometry: { scale: checked['apple-scale'], heightRatio: numberValue('apple-height-ratio'), crownRatio: numberValue('apple-crown-ratio'), asymmetry: numberValue('apple-asymmetry') },
+        visualMaterial: { color: appleColor(), roughness: checked['apple-roughness'], metallic: checked['apple-metallic'], specularIORLevel: checked['apple-specular-ior'], ior: checked['apple-ior'], spotDensity: checked['apple-spot-density'], normalStrength: checked['apple-normal-strength'], skinTransmission: checked['apple-skin-transmission'] },
+        physical: { sscBrix: numberValue('apple-ssc'), waterContent: numberValue('apple-water'), absorptionScale: numberValue('apple-absorption'), reducedScatteringScale: numberValue('apple-scattering'), refractiveIndex: numberValue('apple-ri') },
+        pose: { position: { x: checked['apple-pos-x'], y: checked['apple-pos-y'], z: checked['apple-pos-z'] }, eulerAngles: { x: 0, y: 0, z: 0 } },
+      };
+    }
+    window.FruitsimAppleGenerated = function (sampleId) { document.querySelector('#apple-sample-id').textContent = `样本编号：${sampleId}`; appleStatus('样本已生成，整体大小与位置已应用；其余形状参数仅记录。'); };
+    window.FruitsimAppleBatchGenerated = function (ids) { const values = String(ids || '').split(',').filter(Boolean); document.querySelector('#apple-sample-id').textContent = `样本编号：${values.join('、')}`; appleStatus(`已生成 ${values.length} 个样本（同位置重叠，控制器只跟随最后一个）。`); };
+    window.FruitsimAppleGenerationFailed = function () { appleStatus('样本生成失败，请检查参数后重试。'); };
+    window.FruitsimAppleCleared = function () { document.querySelector('#apple-sample-id').textContent = '样本编号：-'; appleStatus('已清除生成的样本。'); };
+    document.querySelector('#generate-apple').onclick = () => {
+      const checked = FruitsimDemo.validateAppleGeneration(readAppleActiveValues());
+      markAppleInvalid(checked.errors);
+      if (!checked.ok) {
+        const first = Object.values(checked.errors)[0] || '参数无效';
+        appleStatus(`参数错误：${first}（未生成样本）`);
+        return;
+      }
+      const sent = sendUnity('FruitsimOpticsExperiment', 'GenerateAppleJson', JSON.stringify(applePayloadFrom(checked.values, checked.values['apple-seed'])));
+      if (!sent) appleStatus('三维场景尚未就绪，未生成样本。');
+    };
+    document.querySelector('#generate-batch').onclick = () => { const count = Math.max(1, Math.min(32, Math.round(numberValue('apple-batch-count')))); const payload = { count, base_seed: Math.round(numberValue('apple-seed')), request: applePayload(Math.round(numberValue('apple-seed'))) }; const sent = sendUnity('FruitsimOpticsExperiment', 'GenerateBatchJson', JSON.stringify(payload)); if (!sent) appleStatus('三维场景尚未就绪，未生成样本。'); };
+    document.querySelector('#clear-apples').onclick = () => { const sent = sendUnity('FruitsimOpticsExperiment', 'ClearGenerated'); appleStatus(sent ? '正在清除样本…' : '三维场景尚未就绪。'); };
+    document.querySelector('#zoom-in').onclick = () => sendUnity('FruitsimOrbitCamera', 'ZoomIn'); document.querySelector('#zoom-out').onclick = () => sendUnity('FruitsimOrbitCamera', 'ZoomOut'); document.querySelector('#reset-view').onclick = () => sendUnity('FruitsimOrbitCamera', 'ResetView'); document.querySelector('#fullscreen').onclick = () => document.querySelector('#unity-container').requestFullscreen();
+
+    function readOpticsValues() { const ids = Object.keys(FruitsimDemo.OPTICS_FIELDS); const values = {}; ids.forEach(id => { values[id] = document.querySelector(`#${id}`).value; }); values['show-rays'] = document.querySelector('#show-rays').checked; return values; }
+    function markOpticsInvalid(errors) { Object.keys(FruitsimDemo.OPTICS_FIELDS).forEach(id => { const el = document.querySelector(`#${id}`); if (!el) return; if (errors[id]) { el.setAttribute('aria-invalid', 'true'); el.title = errors[id]; } else { el.removeAttribute('aria-invalid'); el.removeAttribute('title'); } }); }
+    function applyOptics() {
+      const result = FruitsimDemo.validateOpticsForm(readOpticsValues());
+      markOpticsInvalid(result.errors);
+      if (!result.ok) { const first = Object.values(result.errors)[0] || '参数无效'; parameterStatus.textContent = `参数未应用：${first}`; log('预览参数校验未通过：' + Object.entries(result.errors).map(([key, value]) => `${key} ${value}`).join('；')); return false; }
+      const sent = sendUnity('FruitsimOpticsExperiment', 'ApplyWebParameters', JSON.stringify(result.payload));
+      if (!sent) { parameterStatus.textContent = '三维场景尚未就绪，参数未发送。'; return false; }
+      parameterStatus.textContent = `预览参数已提交（等待 Unity 处理）：${result.payload.light_count} 个光源，${result.payload.wavelength_nm} nm，倾角 ${result.payload.incident_angle_deg}°。`;
+      sendCommand('viewer.set_wavelength', { wavelength_nm: result.payload.wavelength_nm }, null, true);
+      return true;
+    }
+    document.querySelector('#apply-optics').onclick = applyOptics;
+    Object.keys(FruitsimDemo.OPTICS_FIELDS).forEach(id => document.querySelector(`#${id}`).addEventListener('change', applyOptics));
+
+    function setConnection(kind, detail) {
+      connectionKind = kind;
+      const labels = { connecting: '连接中', connected: '已连接', offline: '未连接', error: '连接失败' };
+      connection.textContent = `计算服务${labels[kind] || kind}`;
+      connection.classList.toggle('online', kind === 'connected');
+      gatewayState.textContent = labels[kind] || kind;
+      if (kind === 'connecting') { connectBtn.textContent = '连接中…'; connectBtn.disabled = true; }
+      else if (kind === 'connected') { connectBtn.textContent = '断开连接'; connectBtn.disabled = false; }
+      else if (kind === 'error') { connectBtn.textContent = '重试连接'; connectBtn.disabled = false; }
+      else { connectBtn.textContent = '连接计算服务'; connectBtn.disabled = false; }
+      if (detail) log(detail);
+      renderControls();
+    }
+    function log(message) { const time = new Date().toLocaleTimeString(); if (logBox.textContent === '尚无运行记录。') logBox.textContent = ''; logBox.textContent += `[${time}] ${message}\n`; logBox.scrollTop = logBox.scrollHeight; }
+    function gatewayUrl() { const scheme = location.protocol === 'https:' ? 'wss' : 'ws'; return `${scheme}://${location.hostname}:${Number(document.querySelector('#gateway-port').value) || 8765}`; }
+    function sendCommand(name, payload, runId, quiet = false) {
+      if (!gateway || gateway.readyState !== WebSocket.OPEN) { if (!quiet) log('计算服务未连接，无法发送任务。'); return null; }
+      const message = { protocol: 1, type: 'command', command_id: `web-${Date.now()}-${Math.random().toString(16).slice(2)}`, name, run_id: runId || null, payload: payload || {}, client_ts: new Date().toISOString() };
+      try {
+        gateway.send(JSON.stringify(message));
+      } catch (error) {
+        log(`发送失败：${(error && error.message) || error}`);
+        return null;
+      }
+      FruitsimDemo.debug.recordCommand({ name, runId: runId || null, commandId: message.command_id, payload: payload || {} });
+      if (!quiet) log(`已发送 ${name} 请求。`);
+      return message;
+    }
+    function renderRunState() {
+      const state = runTracker.state;
+      runStateEl.textContent = FruitsimDemo.formatStatus(state.status);
+      runStageEl.textContent = FruitsimDemo.formatStage(state.stage);
+      // Never surface the server absolute path; only the Run identity.
+      runPathEl.textContent = state.runId ? `Run ${state.runId}` : '-';
+      if (state.runId) runFeedback.textContent = `当前任务：${state.runId} · ${FruitsimDemo.formatStatus(state.status)}${state.message ? ' · ' + state.message : ''}`;
+      renderControls();
+    }
+    function renderControls() {
+      const connected = connectionKind === 'connected' && gateway && gateway.readyState === WebSocket.OPEN;
+      const active = runTracker.isActive();
+      startBtn.disabled = !connected || active;
+      // Cancel requires a live connection AND a server-confirmed run id.
+      cancelBtn.disabled = !connected || !runTracker.submittedRunId || !active;
+      replayBtn.disabled = !connected;
+    }
+    function handleServerMessage(message) {
+      if (!message || typeof message !== 'object') return;
+      if (message.type === 'hello') {
+        // hello carries the server's latest seq; it is only a watermark and must
+        // not be mistaken for events this client has already received.
+        log(`计算服务就绪（服务端记录到 #${message.latest_seq || 0}）。`);
+        return;
+      }
+      if (message.type === 'command_ack') {
+        const accepted = !!message.accepted;
+        const reason = (message.error && message.error.message) || '未知原因';
+        const pendingId = runTracker.pendingCommandId;
+        if (message.command_id && pendingId && message.command_id === pendingId) {
+          // This ack belongs to our in-flight run.start.
+          if (!accepted) {
+            pendingRunStartMessage = null;
+            runTracker.rejectSubmit(reason);
+            runFeedback.textContent = `任务未启动：${reason}`;
+            renderRunState();
+          }
+          return;
+        }
+        // Viewer/cancel (or foreign) acks must never clear an active run.
+        if (!accepted) { runFeedback.textContent = `请求被拒绝：${reason}`; log(`请求被拒绝：${reason}`); }
+        return;
+      }
+      if (message.type === 'event') {
+        const result = runTracker.ingest(message);
+        lastSeqEl.textContent = runTracker.lastReceivedSeq;
+        if (result.applied) {
+          renderRunState();
+          const kind = String(message.kind || '');
+          if (kind === 'run_accepted') {
+            pendingRunStartMessage = null;
+          } else if (kind === 'run_completed') {
+            const completedRun = runTracker.state.runId;
+            clearResults(`Run ${completedRun} 已完成，正在读取本次结果…`);
+            loadResults(completedRun);
+          } else if (kind === 'run_failed' || kind === 'run_cancelled') {
+            pendingRunStartMessage = null;
+            const state = runTracker.state;
+            clearResults(`本次 Run ${state.runId || ''} ${FruitsimDemo.formatStatus(state.status)}，未生成结果${state.message ? `（${state.message}）` : '。'}`);
+          }
+        }
+        log(`事件 #${message.seq || '-'} ${message.kind || ''} · ${FruitsimDemo.formatStage(message.stage)} / ${FruitsimDemo.formatStatus(message.status)}`);
+      }
+    }
+    // ------------------------------------------------------- Run results API
+    let resultsGeneration = 0;
+    let previewGeneration = 0;
+    let resultsRunId = null;
+    function clearResults(message) {
+      resultsGeneration += 1;
+      previewGeneration += 1;
+      resultsRunId = null;
+      resultsSummary.textContent = '';
+      resultsArtifacts.textContent = '';
+      resultsPreview.hidden = true;
+      resultsPreview.textContent = '';
+      loadResultsBtn.disabled = true;
+      resultsNote.textContent = message || '尚未加载本次结果。';
+    }
+    function addDefinition(list, label, value) {
+      const dt = document.createElement('dt');
+      dt.textContent = label;
+      const dd = document.createElement('dd');
+      dd.textContent = value === null || value === undefined || value === '' ? '-' : String(value);
+      list.appendChild(dt);
+      list.appendChild(dd);
+    }
+    function renderResults(data) {
+      const runId = String(data.run_id);
+      resultsSummary.textContent = '';
+      const list = document.createElement('dl');
+      addDefinition(list, 'Run', runId);
+      addDefinition(list, '状态', data.state);
+      addDefinition(list, '来源类型', data.source_type);
+      addDefinition(list, '随机种子', data.seed);
+      addDefinition(list, '生成器', data.generator_version);
+      addDefinition(list, '创建时间', data.created_at);
+      if (typeof data.configuration_hash === 'string') {
+        addDefinition(list, '配置摘要', data.configuration_hash.slice(0, 12));
+      }
+      resultsSummary.appendChild(list);
+      if (Array.isArray(data.warnings) && data.warnings.length) {
+        const warn = document.createElement('p');
+        warn.className = 'note';
+        warn.textContent = `数据说明：${data.warnings.join(' ')}`;
+        resultsSummary.appendChild(warn);
+      }
+      resultsArtifacts.textContent = '';
+      const artifacts = Array.isArray(data.artifacts) ? data.artifacts : [];
+      if (!artifacts.length) {
+        const empty = document.createElement('p');
+        empty.className = 'note';
+        if (data.state === 'completed') {
+          empty.textContent = '本次 Run 未登记可下载的数据产物（没有生成新的图表或 ML 模型）。';
+        } else if (data.terminal) {
+          empty.textContent = `本次 Run 状态：${data.state}，未生成结果。`;
+        } else {
+          empty.textContent = `Run 仍在进行中（${data.state}），数据产物尚未就绪。`;
+        }
+        resultsArtifacts.appendChild(empty);
+      }
+      const expectedPrefix = `/api/runs/${encodeURIComponent(runId)}/artifacts/`;
+      artifacts.forEach(entry => {
+        // Strict same-run endpoint: never accept a link that points at another Run.
+        if (!entry || typeof entry.url !== 'string' || typeof entry.artifact_id !== 'string') return;
+        const expectedUrl = `${expectedPrefix}${encodeURIComponent(entry.artifact_id)}`;
+        if (entry.url !== expectedUrl) return;
+        const row = document.createElement('p');
+        row.className = 'run-artifact-row';
+        const link = document.createElement('a');
+        link.href = entry.url;
+        link.setAttribute('download', '');
+        link.textContent = `下载 ${entry.artifact_id}（${entry.role}）`;
+        row.appendChild(link);
+        const meta = document.createElement('span');
+        meta.textContent = ` ${entry.media_type}${typeof entry.size === 'number' ? ` · ${entry.size} B` : ''}`;
+        row.appendChild(meta);
+        if (entry.previewable) {
+          const preview = document.createElement('button');
+          preview.type = 'button';
+          preview.className = 'small-button';
+          preview.textContent = '预览前几行';
+          preview.onclick = () => previewArtifact(entry);
+          row.appendChild(preview);
+        }
+        resultsArtifacts.appendChild(row);
+      });
+      resultsRunId = runId;
+      loadResultsBtn.disabled = false;
+      const stateNote = data.succeeded ? '已完成' : (data.terminal ? String(data.state) : `进行中：${data.state}`);
+      resultsNote.textContent = `已加载 Run ${runId}（${stateNote}）。链接仅指向同源 /api/runs 登记产物。`;
+    }
+    function renderResultsError(message) {
+      resultsSummary.textContent = '';
+      resultsArtifacts.textContent = '';
+      resultsPreview.hidden = true;
+      const error = document.createElement('p');
+      error.className = 'note';
+      error.textContent = `${message}（可点击“查看本次数据产物”重试）`;
+      resultsArtifacts.appendChild(error);
+      resultsNote.textContent = '加载本次结果失败。';
+      loadResultsBtn.disabled = !resultsRunId;
+    }
+    function loadResults(runId) {
+      if (!runId) return;
+      const generation = ++resultsGeneration;
+      previewGeneration += 1;
+      const identity = String(runId);
+      resultsRunId = identity;
+      resultsSummary.textContent = '';
+      resultsArtifacts.textContent = '';
+      resultsPreview.hidden = true;
+      resultsNote.textContent = `正在读取 Run ${identity} …`;
+      loadResultsBtn.disabled = true;
+      let response;
+      try {
+        response = fetch(`/api/runs/${encodeURIComponent(identity)}`, { headers: { Accept: 'application/json' } });
+      } catch (error) {
+        renderResultsError(`无法读取本次结果：${(error && error.message) || error}`);
+        return;
+      }
+      response
+        .then(result => { if (!result.ok) throw new Error(`HTTP ${result.status}`); return result.json(); })
+        .then(data => {
+          // Generation guard drops stale responses; identity guard drops a
+          // response that is not the Run we asked for (retryable, not silent).
+          if (generation !== resultsGeneration) return;
+          if (!data || String(data.run_id) !== identity) {
+            renderResultsError(`结果身份不符（请求 ${identity}，返回 ${data && data.run_id}）`);
+            return;
+          }
+          renderResults(data);
+        })
+        .catch(error => { if (generation !== resultsGeneration) return; renderResultsError(`无法读取本次结果：${(error && error.message) || error}`); });
+    }
+    function previewArtifact(entry) {
+      const token = ++previewGeneration;
+      const runId = resultsRunId;
+      resultsPreview.hidden = false;
+      resultsPreview.textContent = '正在加载预览…';
+      fetch(entry.url, { headers: { Accept: 'text/csv, text/plain' } })
+        .then(result => { if (!result.ok) throw new Error(`HTTP ${result.status}`); return result.text(); })
+        .then(text => {
+          // A later preview click or a new Run invalidates this response.
+          if (token !== previewGeneration || resultsRunId !== runId) return;
+          const lines = String(text).split(/\r?\n/).slice(0, 20);
+          resultsPreview.textContent = lines.join('\n');
+        })
+        .catch(error => {
+          if (token !== previewGeneration || resultsRunId !== runId) return;
+          resultsPreview.textContent = `预览失败：${(error && error.message) || error}`;
+        });
+    }
+    loadResultsBtn.onclick = () => { if (runTracker.submittedRunId) loadResults(runTracker.submittedRunId); else if (resultsRunId) loadResults(resultsRunId); };
+
+    function handleSocketMessage(event, generation) { if (generation !== connectGeneration) return; let message; try { message = JSON.parse(event.data); } catch (_) { log('收到无法识别的服务响应。'); return; } handleServerMessage(message); }    function resumePendingStart(socket) {
+      const pendingId = runTracker.pendingCommandId;
+      if (pendingId && pendingRunStartMessage && pendingRunStartMessage.command_id === pendingId) {
+        // Same command_id: the hub's idempotent ack / journal replay recognizes
+        // the original request, so no duplicate Run is created.
+        socket.send(JSON.stringify(pendingRunStartMessage));
+        log('重连：重新确认未完成的任务请求（同一 command_id）。');
+      }
+    }
+    function sendReplay(socket) {
+      const replay = runTracker.replayRequest();
+      socket.send(JSON.stringify({ type: 'replay', after_seq: replay.after_seq, run_id: replay.run_id }));
+    }
+    function toggleConnection() {
+      if (gateway && gateway.readyState === WebSocket.OPEN) { gateway.close(); return; }
+      if (gateway && gateway.readyState === WebSocket.CONNECTING) return;
+      const generation = ++connectGeneration;
+      socketErrored = false;
+      if (gateway) { gateway.onopen = gateway.onclose = gateway.onerror = gateway.onmessage = null; try { gateway.close(); } catch (_) { /* ignore */ } }
+      setConnection('connecting');
+      let socket;
+      try { socket = new WebSocket(gatewayUrl()); } catch (error) { setConnection('error', `无法创建连接：${(error && error.message) || error}`); return; }
+      gateway = socket;
+      FruitsimDemo.debug.socketCount += 1;
+      let opened = false;
+      socket.onopen = () => { if (generation !== connectGeneration) return; opened = true; setConnection('connected'); resumePendingStart(socket); sendReplay(socket); };
+      socket.onerror = () => { if (generation !== connectGeneration) return; socketErrored = true; };
+      socket.onclose = () => {
+        if (generation !== connectGeneration) return;
+        // A dropped socket may leave an unconfirmed start pending; recover it.
+        runTracker.markDisconnected();
+        renderRunState();
+        const failed = socketErrored || !opened;
+        setConnection(failed ? 'error' : 'offline', failed ? `连接 ${gatewayUrl()} 失败：计算服务未响应，请确认 Gateway 已启动。` : null);
+      };
+      socket.onmessage = event => handleSocketMessage(event, generation);
+    }
+    connectBtn.onclick = toggleConnection;
+    startBtn.onclick = () => {
+      const result = FruitsimDemo.validateStartForm(document.querySelector('#seed').value, document.querySelector('#samples').value, document.querySelector('#run-id').value);
+      if (!result.ok) { const first = Object.values(result.errors)[0] || '参数无效'; runFeedback.textContent = `参数错误：${first}`; log('运行参数校验未通过：' + Object.entries(result.errors).map(([key, value]) => `${key} ${value}`).join('；')); return; }
+      if (!(connectionKind === 'connected' && gateway && gateway.readyState === WebSocket.OPEN)) { runFeedback.textContent = '计算服务未连接，请先连接。'; return; }
+      const command = sendCommand('run.start', { mode: 'math', seed: result.payload.seed, samples: result.payload.samples }, result.runId);
+      if (!command) { runFeedback.textContent = '任务发送失败，请检查连接后重试。'; return; }
+      // Track the exact command_id so only our run_accepted can claim the card.
+      pendingRunStartMessage = command;
+      runTracker.beginSubmit(command.command_id, result.runId);
+      clearResults('已提交新任务，旧结果已清除。');
+      runFeedback.textContent = '已提交任务，等待服务确认。';
+      renderRunState();
+    };
+    cancelBtn.onclick = () => {
+      if (!(connectionKind === 'connected' && gateway && gateway.readyState === WebSocket.OPEN)) { runFeedback.textContent = '计算服务未连接，无法取消。'; return; }
+      if (!runTracker.submittedRunId || !runTracker.isActive()) { runFeedback.textContent = '当前没有已确认且可取消的任务。'; return; }
+      const command = sendCommand('run.cancel', {}, runTracker.submittedRunId);
+      if (!command) { runFeedback.textContent = '取消请求发送失败，任务仍在运行。'; return; }
+      runFeedback.textContent = `已请求取消 ${runTracker.submittedRunId}，等待子进程退出确认。`;
+    };
+    replayBtn.onclick = () => { if (gateway && gateway.readyState === WebSocket.OPEN) gateway.send(JSON.stringify({ type: 'replay', after_seq: 0 })); };
+
+    function loaderFailed(reason) {
+      unityInstance = null;
+      const loading = document.querySelector('#loading');
+      if (loading) {
+        loading.innerHTML = '';
+        const text = document.createElement('span');
+        text.textContent = `${reason}。`;
+        const retry = document.createElement('button');
+        retry.id = 'unity-retry';
+        retry.type = 'button';
+        retry.className = 'small-button';
+        retry.textContent = '重新载入三维场景';
+        retry.onclick = () => location.reload();
+        loading.appendChild(text);
+        loading.appendChild(retry);
+      }
+      unityState.textContent = '载入失败';
+      FruitsimDemo.debug.loaderFailed = reason;
+      log(`${reason}；可点击“重新载入三维场景”，数据与机器学习页面仍可使用。`);
+    }
+    const buildUrl = 'Build', loaderUrl = buildUrl + '/{{{ LOADER_FILENAME }}}';
+    const config = { dataUrl: buildUrl + '/{{{ DATA_FILENAME }}}', frameworkUrl: buildUrl + '/{{{ FRAMEWORK_FILENAME }}}', codeUrl: buildUrl + '/{{{ CODE_FILENAME }}}', streamingAssetsUrl: 'StreamingAssets', companyName: 'Fruitsim', productName: 'Fruitsim Research Workbench', productVersion: '0.2', showBanner: (msg, type) => log('三维场景提示：' + msg), devicePixelRatio: 1 };
+    function handleLoaderLoad() {
+      // The loader may be missing, throw synchronously, or reject; all three
+      // must reach the shared failure entry instead of hanging on "载入中".
+      try {
+        if (typeof createUnityInstance !== 'function') {
+          loaderFailed('三维场景加载器未提供 createUnityInstance');
+          return;
+        }
+        const initialization = createUnityInstance(canvas, config, progress => { const bar = document.querySelector('#progress div'); if (bar) bar.style.width = `${progress * 100}%`; });
+        if (!initialization || typeof initialization.then !== 'function') {
+          loaderFailed('三维场景初始化未返回可等待的实例');
+          return;
+        }
+        initialization
+          .then(instance => { unityInstance = instance; const loading = document.querySelector('#loading'); if (loading) loading.style.display = 'none'; unityState.textContent = '已就绪'; log('三维场景已就绪。'); })
+          .catch(error => loaderFailed(`三维场景初始化失败（${(error && error.message) || error}）`));
+      } catch (error) {
+        loaderFailed(`三维场景初始化异常（${(error && error.message) || error}）`);
+      }
+    }
+    const script = document.createElement('script');
+    script.src = loaderUrl;
+    script.onload = handleLoaderLoad;
+    script.onerror = () => loaderFailed('三维场景加载脚本失败（Build 资源缺失或不可访问）');
+    document.body.appendChild(script);
+
+    window.__FruitsimDemoDebug = {
+      tracker: runTracker,
+      sentCommands: FruitsimDemo.debug.sentCommands,
+      inject: handleServerMessage,
+      socketCount: () => FruitsimDemo.debug.socketCount,
+      connectionKind: () => connectionKind,
+      loaderFailed: () => FruitsimDemo.debug.loaderFailed || null,
+      applyOptics,
+      simulateLoaderLoad: handleLoaderLoad,
+      setGatewayStub(stub, kind) { gateway = stub; if (kind) connectionKind = kind; renderControls(); },
+      resetTracker() { runTracker.rejectSubmit(''); pendingRunStartMessage = null; renderRunState(); },
+      cancelRun() { cancelBtn.onclick(); },
+      loadResults,
+      clearResults,
+      resultsGeneration: () => resultsGeneration,
+      resultsRunId: () => resultsRunId,
+      simulateReconnect() {
+        if (!gateway || gateway.readyState !== WebSocket.OPEN) return null;
+        resumePendingStart(gateway);
+        sendReplay(gateway);
+        return runTracker.replayRequest();
+      },
+    };
   </script>
   <script>window.__FRUITSIM_P1_HARNESS__ = new URLSearchParams(location.search).has('harness');</script>
   <script src="static/ml_p1_contract.js"></script>
@@ -267,5 +725,7 @@
   <script src="static/ml_p1_teaching.js"></script>
   <script src="static/ml_p1.js"></script>
   <script>if (window.__FRUITSIM_P1_HARNESS__) { const script = document.createElement('script'); script.src = 'static/ml_p1_browser_harness.js'; document.body.appendChild(script); }</script>
+  <script>if (new URLSearchParams(location.search).has('demoharness')) { const script = document.createElement('script'); script.src = 'static/demo_browser_harness.js'; document.body.appendChild(script); }</script>
+  <script>if (new URLSearchParams(location.search).has('demoe2e')) { const script = document.createElement('script'); script.src = 'static/demo_e2e_harness.js'; document.body.appendChild(script); }</script>
 </body>
 </html>

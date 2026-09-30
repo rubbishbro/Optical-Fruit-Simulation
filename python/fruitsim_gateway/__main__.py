@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import math
 from pathlib import Path
 
 from fruitsim_protocol.journal import EventJournal
@@ -10,15 +11,50 @@ from .orchestrator import RunOrchestrator
 from .server import ProtocolHub, ProtocolServer
 
 
-def _demo_handlers(hub: ProtocolHub, orchestrator: RunOrchestrator) -> None:
-    hub.register("run.start", orchestrator.accept_start)
-    hub.register("run.cancel", orchestrator.accept_cancel)
-    hub.register("viewer.set_wavelength", lambda command: {
+WAVELENGTH_MIN_NM = 400.0
+WAVELENGTH_MAX_NM = 1100.0
+
+
+def handle_viewer_wavelength(command: dict) -> dict:
+    """Validate the preview-only wavelength before echoing viewer state.
+
+    ``viewer.set_wavelength`` never triggers a physical calculation; the stored
+    value is a preview request only and must not be reported as a Run update.
+    """
+    payload = command.get("payload") or {}
+    if not isinstance(payload, dict):
+        raise ValueError("viewer payload 必须是对象")
+    raw = payload.get("wavelength_nm")
+    if isinstance(raw, bool):
+        raise ValueError("wavelength_nm 必须是数值")
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            raise ValueError("wavelength_nm 不能为空")
+        try:
+            value = float(text)
+        except ValueError as exc:
+            raise ValueError("wavelength_nm 必须是数值") from exc
+    elif isinstance(raw, (int, float)):
+        value = float(raw)
+    else:
+        raise ValueError("wavelength_nm 必须是数值")
+    if not math.isfinite(value) or value < WAVELENGTH_MIN_NM or value > WAVELENGTH_MAX_NM:
+        raise ValueError(
+            f"wavelength_nm 必须在 {WAVELENGTH_MIN_NM:.0f} 到 {WAVELENGTH_MAX_NM:.0f} nm 之间"
+        )
+    return {
         "kind": "viewer_state",
         "stage": "viewer",
         "status": "updated",
-        "payload": command.get("payload", {}),
-    })
+        "payload": {"wavelength_nm": value, "preview_only": True},
+    }
+
+
+def _demo_handlers(hub: ProtocolHub, orchestrator: RunOrchestrator) -> None:
+    hub.register("run.start", orchestrator.accept_start)
+    hub.register("run.cancel", orchestrator.accept_cancel)
+    hub.register("viewer.set_wavelength", handle_viewer_wavelength)
 
 
 async def _run(args: argparse.Namespace) -> None:

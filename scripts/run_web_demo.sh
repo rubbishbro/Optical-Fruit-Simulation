@@ -9,6 +9,22 @@ web_root="${FRUITSIM_WEB_ROOT:-${repo_root}/apps/fruitsim_unity/build/WebGL}"
 output_root="${FRUITSIM_DEMO_OUTPUT_ROOT:-${repo_root}/results/web_demo/runs}"
 journal="${FRUITSIM_GATEWAY_JOURNAL:-${repo_root}/results/web_demo/events.jsonl}"
 
+# The Gateway and static server must run on the same interpreter so the child
+# pipeline also sees the scientific Python dependencies. This host has no
+# ``python`` on PATH, so default to ``python3`` and allow an explicit override.
+python_bin="${PYTHON_BIN:-python3}"
+if [[ "${python_bin}" == */* ]]; then
+  python_path="${python_bin}"
+else
+  python_path="$(command -v "${python_bin}" 2>/dev/null || true)"
+fi
+if [[ -z "${python_path}" || ! -x "${python_path}" ]]; then
+  echo "Python interpreter not found: ${python_bin}" >&2
+  echo "Set PYTHON_BIN to a Python executable with the Fruitsim dependencies." >&2
+  exit 2
+fi
+export PYTHON_BIN="${python_path}"
+
 if [[ ! -f "${web_root}/index.html" ]]; then
   echo "WebGL build not found: ${web_root}" >&2
   echo "Run: bash scripts/build_unity.sh webgl" >&2
@@ -25,7 +41,7 @@ trap cleanup EXIT INT TERM
 
 cd "${repo_root}"
 PYTHONPATH="${repo_root}/python${PYTHONPATH:+:${PYTHONPATH}}" \
-  python -m fruitsim_gateway \
+  "${python_path}" -m fruitsim_gateway \
     --bind "${bind_address}" \
     --port "${gateway_port}" \
     --journal "${journal}" \
@@ -33,10 +49,11 @@ PYTHONPATH="${repo_root}/python${PYTHONPATH:+:${PYTHONPATH}}" \
     --repo-root "${repo_root}" &
 gateway_pid=$!
 
-python scripts/serve_webgl_demo.py \
+"${python_path}" scripts/serve_webgl_demo.py \
   --root "${web_root}" \
   --bind "${bind_address}" \
-  --port "${web_port}" &
+  --port "${web_port}" \
+  --runs-root "${output_root}" &
 web_pid=$!
 
 echo "Fruitsim Web demo: http://$(hostname -f 2>/dev/null || hostname):${web_port}"

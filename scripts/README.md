@@ -14,7 +14,11 @@
 - `verify_web_teaching_assets.py`：校验目录 JSON、每个数据集 bundle、页面图像与 Unity loader
   的真实引用；`--build-root` 校验发布目录，`--http-base` 校验已服务构建的 HTTP 响应。
 - `run_web_demo.sh` / `run_student_demo.sh` / `run_stage_acceptance.sh`：启动与验收。
-- `serve_webgl_demo.py`：带 gzip 与跨域头的静态 WebGL 服务。
+- `serve_webgl_demo.py`：带 gzip 与跨域头的静态 WebGL 服务。传 `--runs-root <output_root>`
+  （`run_web_demo.sh` 已用同一目录）时才开放只读结果接口：
+  `GET/HEAD /api/runs/<run_id>` 返回 manifest 摘要与经 `artifacts.json` 登记、白名单媒体类型/role 的产物相对 URL；
+  `GET/HEAD /api/runs/<run_id>/artifacts/<artifact_id>` 下载已登记文件。默认不启用；拒绝路径/编码穿越、
+  目录形态、跨 Run、符号链接逃逸、未登记文件与 `request.json`/日志，不返回绝对路径或 `request.output_dir`。
 - `apply_webgl_demo_shell.py`：构建后确定性注入教学壳，由 WebGL 构建脚本调用。
 - `build_web_teaching_assets.py`：生成 WebGL 教学静态资源。输入可用环境变量覆盖：
   `FRUITSIM_RESULTS_ROOT`、`FRUITSIM_MATH_VIS_DIR`、`FRUITSIM_PHYSICAL_VIS_DIR`、
@@ -41,10 +45,17 @@
 ## tests/
 
 前端与端到端检查：`test_ml_teaching.js`、`test_ml_renderer.js`、`test_ml_browser.py`、
-`test_workflow_correctness_e2e.py`。
+`test_demo_browser.py`、`test_demo_e2e.py`、`test_workflow_correctness_e2e.py`。
 
 ```bash
 node scripts/tests/test_ml_teaching.js
 node scripts/tests/test_ml_renderer.js
 PYTHONPATH=python python scripts/tests/test_ml_browser.py
+PYTHONPATH=python python scripts/tests/test_demo_browser.py
+# 真实 Gateway + HTTP 结果接口 + 真实 Chrome A/B（需 google-chrome 与 websocket-client）
+PYTHONPATH=python python scripts/tests/test_demo_e2e.py
 ```
+
+结果接口与脚本级集成测试在 `python/tests/`：
+`test_serve_webgl_demo_api.py`（API 安全/HEAD/gzip）、`test_run_web_demo_e2e.py`（真实启动
+`run_web_demo.sh` 后 WS 建 Run 并 HTTP 读取同一 Run）。
