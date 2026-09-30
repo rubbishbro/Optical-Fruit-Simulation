@@ -53,7 +53,7 @@ def main() -> int:
     if not args.skip_physical:
         repo_root = Path(__file__).resolve().parents[2]
         binary = repo_root / "build-mesh" / "apps" / "fruitsim_cli" / "fruitsim_cli"
-        config = repo_root / "configs" / "ring_sensor_demo.json"
+        config = repo_root / "configs" / "sphere_ring_detector.json"
         if binary.is_file() and config.is_file():
             physical_id = _fresh_id(output_root, f"{args.run_prefix}_physical", args.seed)
             physical_run = generate_physical_run(

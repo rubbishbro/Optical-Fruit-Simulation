@@ -41,7 +41,13 @@ function testRendererFallbackAndPlaybackPlan() {
   assert.strictEqual(contract.resolveRenderer("morph_curve", { morph_curve: () => "known" }, fallback)(), "known");
   assert.strictEqual(contract.resolveRenderer("future_unknown_event", {}, fallback)(), "fallback");
   assert.strictEqual(contract.ANIMATION_EVENTS.length, 14);
-  const bundle = JSON.parse(fs.readFileSync(path.join(__dirname, "../../apps/fruitsim_unity/Assets/WebGLTemplates/FruitsimDemo/static/ml_p1_bundle.json"), "utf8"));
+  const staticDir = path.join(__dirname, "../../apps/fruitsim_unity/Assets/WebGLTemplates/FruitsimDemo/static");
+  const catalog = JSON.parse(fs.readFileSync(path.join(staticDir, "ml_p1_datasets.json"), "utf8"));
+  const templateDir = path.join(staticDir, "..");
+  catalog.datasets.forEach((dataset) => {
+    assert(fs.existsSync(path.join(templateDir, dataset.bundle_url)), `missing bundle ${dataset.bundle_url}`);
+  });
+  const bundle = JSON.parse(fs.readFileSync(path.join(templateDir, catalog.datasets[0].bundle_url), "utf8"));
   const plan = contract.buildPlaybackPlan(bundle);
   assert(plan.some((item) => item.stage_run_id === "feature-analysis-pca"));
   assert(plan.some((item) => item.stage_run_id === "feature-analysis-cars"));

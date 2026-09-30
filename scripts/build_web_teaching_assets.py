@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 import os
 import shutil
 import sys
@@ -26,7 +27,7 @@ PHYSICAL = Path(os.environ.get(
     "FRUITSIM_PHYSICAL_VIS_DIR",
     RESULTS / "frontend_acceptance_20260920/student_demo_final/physical_seed20260919/visualizations",
 ))
-ML = Path(os.environ.get("FRUITSIM_ML_RUN_DIR", RESULTS / "ml_golden_demo"))
+ML = Path(os.environ.get("FRUITSIM_ML_RUN_DIR", RESULTS / "ml_train"))
 
 COPIES = {
     ROOT / "assets/figures/absorption_heatmap.png": "absorption_heatmap.png",
@@ -45,6 +46,25 @@ COPIES = {
 def _read_csv(path: Path) -> list[dict[str, str]]:
     with path.open(newline="", encoding="utf-8") as stream:
         return list(csv.DictReader(stream))
+
+
+def _round_floats(value: Any, significant: int = 6) -> Any:
+    """Keep bundle JSON small enough to commit while preserving visualization detail."""
+    if isinstance(value, float):
+        if value == 0.0 or not math.isfinite(value):
+            return value
+        digits = significant - int(math.floor(math.log10(abs(value)))) - 1
+        return round(value, digits) if -300 < digits < 300 else value
+    if isinstance(value, list):
+        return [_round_floats(item, significant) for item in value]
+    if isinstance(value, dict):
+        return {key: _round_floats(item, significant) for key, item in value.items()}
+    return value
+
+
+def _write_bundle(path: Path, payload: Any) -> None:
+    compact = json.dumps(_round_floats(payload), ensure_ascii=False, separators=(",", ":"))
+    path.write_text(compact + "\n", encoding="utf-8")
 
 
 def main() -> int:
@@ -119,7 +139,7 @@ def main() -> int:
 
     summary = {
         "schema_version": 1,
-        "source": "results/ml_golden_demo",
+        "source": "results/ml_train",
         "data_boundary": "synthetic demonstration; not a real-apple performance claim",
         "best": best,
         "validation_prediction_count": len(predictions),
@@ -500,9 +520,7 @@ def main() -> int:
             "show_prediction", "show_residual", "show_metric",
         ],
     }
-    (OUTPUT / "ml_p1_bundle.json").write_text(
-        json.dumps(_json_value(p1_bundle), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
+    _write_bundle(OUTPUT / "ml_p1_bundle.json", _json_value(p1_bundle))
     print(f"Built research UI assets in {OUTPUT}")
     return 0
 

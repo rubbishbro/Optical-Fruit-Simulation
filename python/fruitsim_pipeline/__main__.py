@@ -25,7 +25,7 @@ def main() -> int:
     generate.add_argument("--noise-sigma", type=float, default=0.008)
     physical = commands.add_parser("simulate-physical", help="run C++ Monte Carlo and package a Run")
     physical.add_argument("--binary", type=Path, default=Path("build-mesh/apps/fruitsim_cli/fruitsim_cli"))
-    physical.add_argument("--config", type=Path, default=Path("configs/ring_sensor_demo.json"))
+    physical.add_argument("--config", type=Path, default=Path("configs/sphere_ring_detector.json"))
     physical.add_argument("--output-root", type=Path, default=Path("results/runs"))
     physical.add_argument("--run-id", required=True)
     physical.add_argument("--photons", type=int, default=256)

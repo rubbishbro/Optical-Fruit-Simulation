@@ -4,7 +4,7 @@
 
 1. **光学仿真**：显示 Blender 导入的苹果、十二组环形灯具和探测器；支持拖动旋转、滚轮或按钮缩放、视角复位和全屏。
 2. **结果图像**：集中浏览吸收热力图、加权光子路径、光谱热力图、PCA、相关热力图、探测器响应、采样深度和能量审计。
-3. **ML 链路**：展示数据校验、数据划分、预处理、特征、候选模型与独立验证，并读取真实训练产物生成验证散点和 RMSEP 比较图。
+3. **ML 链路**：展示数据校验、数据划分、预处理、特征、候选模型与独立验证。它读取随仓库提交的预计算合成教学 bundle，不在浏览器内重新训练或调用 C++ transport。
 4. **运行与审计**：保留 Gateway 连接、Run 启动、状态推进、事件重放和服务端结果路径。
 
 ## Unity 交互接口
@@ -45,14 +45,28 @@ Unity WebGL 的预编译只固定程序代码，页面仍可实时传入光学�
 
 为控制渲染量，固定知识点（例如 SNV 公式讲解）可以预渲染少量通用片段；连续参数变化仍由 Unity 或 Canvas 即时展示。只有用户明确选定 Run 和场景时才按需渲染与该结果精确对应的 Manim 动画。可以先生成低画质预览，再对需要交付的片段生成高画质版本。上述计算参数存档、动画任务、缓存与播放器联动是待实现的接口约定，不是现有功能。
 
-## 图像来源
+## 构建与校验入口
 
-发布资源位于 `apps/fruitsim_unity/Assets/WebGLTemplates/FruitsimDemo/static/`。运行：
+五组合成教学数据集 bundle（`static/ml_datasets/*/ml_p1_bundle.json`）随仓库提交，因此在干净检出上
+无需先跑数据生成即可构建。完整流程：
 
 ```bash
-PYTHONPATH=python MPLCONFIGDIR=.cache/matplotlib \
-  /home/rubbishbro/miniforge3/envs/mamba-torch311/bin/python \
-  scripts/build_web_teaching_assets.py
+# 1. 校验静态资源引用（目录 JSON、每个 bundle、页面图像）
+python scripts/verify_web_teaching_assets.py --require-catalog
+
+# 2. 查找 Unity 6000.3.23f1、检查 WebGL Build Support，构建、注入教学页面并校验发布目录
+bash scripts/build_unity.sh webgl
+
+# 3. 启动静态服务与 Gateway，浏览器打开 http://<host>:8080
+bash scripts/run_web_demo.sh
 ```
 
-脚本从既有物理/数学 Run、`assets/figures/` 和 `results/ml_golden_demo/` 提取并生成发布图。`apply_webgl_demo_shell.py` 在构建后将它们复制到 WebGL 根目录的 `static/`。所有 ML 指标均标注为合成教学数据，不构成真实苹果 SSC 精度声明。
+`build_unity.sh` 读取 `apps/fruitsim_unity/ProjectSettings/ProjectVersion.txt`（当前
+`6000.3.23f1`），优先在 Unity Hub 安装目录中查找同版本编辑器，可用 `UNITY_BIN` 覆盖；
+找不到 WebGL Build Support 时给出提示，设置 `FRUITSIM_REQUIRE_WEBGL_MODULE=1` 可改为硬失败。
+
+发布资源位于 `apps/fruitsim_unity/Assets/WebGLTemplates/FruitsimDemo/static/`；
+`apply_webgl_demo_shell.py` 在构建后将 `static/` 复制到 WebGL 根目录的 `static/`。
+如需重新生成 bundle（例如修改教学数据），运行 `python scripts/build_ml_teaching_catalog.py`，
+它通过 `FRUITSIM_RESULTS_ROOT` 等环境变量读取输入 Run。所有 ML 指标均标注为合成教学数据，
+不构成真实苹果 SSC 精度声明，页面光学参数也不会驱动这些 ML 结果。

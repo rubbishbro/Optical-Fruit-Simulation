@@ -184,7 +184,7 @@ def write_table(output: Path, rows: list[dict]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--mesh", type=Path, default=_RESULTS / "photon_paths_demo/outer_mesh.ply")
-    parser.add_argument("--config", type=Path, default=Path("configs/guided_mc_skin_flesh_core.json"))
+    parser.add_argument("--config", type=Path, default=Path("configs/guided_paths.json"))
     parser.add_argument("--output-dir", type=Path, default=Path("tmp/causal_comparisons"))
     args = parser.parse_args()
     output = args.output_dir

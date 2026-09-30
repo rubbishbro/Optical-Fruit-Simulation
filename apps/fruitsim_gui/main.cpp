@@ -183,10 +183,10 @@ int main()
     std::array<char, 512> workflow_run_dir{};
     std::array<char, 512> workflow_output{};
     std::array<char, 512> python_executable{};
-    std::strcpy(config_path.data(), "configs/golden_delicious_demo.json");
-    std::strcpy(output_path.data(), "results/golden_delicious_demo");
-    std::strcpy(ml_config.data(), "configs/ml_golden_demo.json");
-    std::strcpy(ml_output.data(), "results/ml_golden_demo");
+    std::strcpy(config_path.data(), "configs/sphere_pencil.json");
+    std::strcpy(output_path.data(), "results/sphere_pencil");
+    std::strcpy(ml_config.data(), "configs/ml_train.json");
+    std::strcpy(ml_output.data(), "results/ml_train");
     std::strcpy(workflow_run_dir.data(), "results/frontend_acceptance_20260920/student_demo_final/math_seed20260919");
     std::strcpy(workflow_output.data(), "results/ml_workflow_demo");
     std::strcpy(python_executable.data(), "python");

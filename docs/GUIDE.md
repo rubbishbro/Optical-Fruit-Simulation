@@ -112,10 +112,10 @@ cmake --build build-cpu --parallel
 ctest --test-dir build-cpu --output-on-failure
 
 ./build-cpu/apps/fruitsim_cli/fruitsim_cli validate \
-  --config configs/golden_delicious_demo.json
+  --config configs/sphere_pencil.json
 ./build-cpu/apps/fruitsim_cli/fruitsim_cli run \
-  --config configs/golden_delicious_demo.json \
-  --output results/golden_delicious_demo \
+  --config configs/sphere_pencil.json \
+  --output results/sphere_pencil \
   --photons 100000 --threads 8 --seed 20260819 --backend cpu
 ```
 
@@ -126,14 +126,14 @@ photon count and should not use the smoke-test count.
 
 ```bash
 ./build-cpu/apps/fruitsim_cli/fruitsim_cli validate \
-  --config configs/ring_sensor_demo.json
+  --config configs/sphere_ring_detector.json
 ./build-cpu/apps/fruitsim_cli/fruitsim_cli run \
-  --config configs/ring_sensor_demo.json \
-  --output results/ring_sensor_demo \
+  --config configs/sphere_ring_detector.json \
+  --output results/sphere_ring_detector \
   --photons 20000 --threads 8 --seed 20260819 --backend cpu
 
 ./build-cpu/apps/fruitsim_cli/fruitsim_cli scan-ring \
-  --config configs/ring_sensor_demo.json \
+  --config configs/sphere_ring_detector.json \
   --ring-radii 1,2,3,5,8,10,12,15 \
   --output results/ring_radius_scan \
   --photons 10000 --threads 8 --seed 20260819 --backend cpu
@@ -151,7 +151,7 @@ statistics are detector-arrival-weighted; skin/flesh fields are compatibility pr
 ### Python SSC demonstration
 
 ```bash
-export FRUITSIM_ML_PYTHON=/home/rubbishbro/miniforge3/envs/mamba-torch311/bin/python
+export FRUITSIM_ML_PYTHON="${FRUITSIM_ML_PYTHON:-python3.11}"
 
 env PYTHONNOUSERSITE=1 PYTHONPATH=python "$FRUITSIM_ML_PYTHON" \
   -m fruitsim_ml generate-demo \
@@ -163,11 +163,11 @@ env PYTHONNOUSERSITE=1 PYTHONPATH=python "$FRUITSIM_ML_PYTHON" \
   --input data/synthetic/synthetic_golden_delicious_v1.csv
 
 env PYTHONNOUSERSITE=1 PYTHONPATH=python "$FRUITSIM_ML_PYTHON" \
-  -m fruitsim_ml train --config configs/ml_golden_demo.json
+  -m fruitsim_ml train --config configs/ml_train.json
 ```
 
 The full demo evaluates many feature/preprocessing/model combinations and can take several minutes.
-Use `configs/ml_smoke_test.json` for a short end-to-end validation. Every generated artifact remains
+Use `configs/ml_smoke.json` for a short end-to-end validation. Every generated artifact remains
 marked synthetic and is not valid for real apple SSC prediction.
 
 ### GUI workbench
@@ -181,13 +181,13 @@ cmake --build build-gui --parallel
 ```
 
 The first configure downloads pinned GUI dependencies. Start the GUI from the repository root so its
-default relative config and result paths resolve correctly. Enter the full `mamba-torch311` Python
-path in the GUI before launching an ML job.
+default relative config and result paths resolve correctly. Enter the path of a Python interpreter
+that has the `python[visualize]` dependencies installed in the GUI before launching an ML job.
 
 ### CUDA toolchain and device check
 
 ```bash
-export FRUITSIM_CUDA_ROOT=/home/rubbishbro/miniforge3/envs/mamba-torch38
+export FRUITSIM_CUDA_ROOT="${FRUITSIM_CUDA_ROOT:-/usr/local/cuda}"
 
 "$FRUITSIM_CUDA_ROOT/bin/nvcc" --version
 env PYTHONNOUSERSITE=1 "$FRUITSIM_CUDA_ROOT/bin/python" -c \
@@ -203,7 +203,7 @@ ctest --test-dir build-cuda --output-on-failure
 ./build-cuda/apps/fruitsim_cli/fruitsim_cli devices
 
 ./build-cuda/apps/fruitsim_cli/fruitsim_cli run \
-  --config configs/ring_sensor_demo.json \
+  --config configs/sphere_ring_detector.json \
   --output results/ring_sensor_cuda \
   --photons 2000 --seed 20260819 --backend cuda
 ```
@@ -221,13 +221,13 @@ Use the single-wavelength smoke/benchmark configuration without assuming a devic
 
 ```bash
 ./build-cuda/apps/fruitsim_cli/fruitsim_cli run --backend cuda \
-  --config configs/ring_sensor_benchmark.json --photons 20000 \
+  --config configs/bench_ring_detector.json --photons 20000 \
   --output results/ring_benchmark_cuda_20k
 ./build-cuda/apps/fruitsim_cli/fruitsim_cli run --backend cuda \
-  --config configs/ring_sensor_benchmark.json --photons 100000 \
+  --config configs/bench_ring_detector.json --photons 100000 \
   --output results/ring_benchmark_cuda_100k
 ./build-cuda/apps/fruitsim_cli/fruitsim_cli run --backend cuda \
-  --config configs/ring_sensor_benchmark.json --photons 1000000 \
+  --config configs/bench_ring_detector.json --photons 1000000 \
   --output results/ring_benchmark_cuda_1m
 ```
 

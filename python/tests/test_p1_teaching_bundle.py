@@ -6,7 +6,9 @@ import unittest
 
 
 REPO = Path(__file__).resolve().parents[2]
-BUNDLE = REPO / "apps/fruitsim_unity/Assets/WebGLTemplates/FruitsimDemo/static/ml_p1_bundle.json"
+STATIC = REPO / "apps/fruitsim_unity/Assets/WebGLTemplates/FruitsimDemo/static"
+BUNDLE = STATIC / "ml_p1_bundle.json"
+CATALOG = STATIC / "ml_p1_datasets.json"
 TEMPLATE = REPO / "apps/fruitsim_unity/Assets/WebGLTemplates/FruitsimDemo/index.html"
 
 
@@ -99,12 +101,30 @@ class P1TeachingBundleTests(unittest.TestCase):
         source = TEMPLATE.read_text(encoding="utf-8")
         for marker in (
             "ml-play-pipeline", "ml-restart", "ml-previous", "ml-next", "ml-pause",
-            "ml-sample-select", "ml-feature-select", "Generate Apple", "Generate Batch",
-            "GenerateBatchJson", "FruitsimAppleGenerated", "metadata",
+            "ml-dataset-select", "ml-feature-select", "ml-stage-tabs", "ml-contract-bar",
+            "ml-chapter-bar", "ml-source-note", "generate-apple", "generate-batch",
+            "GenerateBatchJson", "FruitsimAppleGenerated", "ApplyWebParameters",
         ):
             self.assertIn(marker, source)
         bridge = (REPO / "apps/fruitsim_unity/Assets/Scripts/Optics/FruitsimAppleGeneratorBridge.cs").read_text(encoding="utf-8")
         self.assertIn("class FruitsimAppleGeneratorBridge", bridge)
+
+    def test_dataset_catalog_bundles_resolve_and_match_catalog(self) -> None:
+        catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
+        self.assertEqual(catalog["source_type"], "SYNTHETIC_TEACHING")
+        self.assertEqual(len(catalog["datasets"]), 5)
+        for dataset in catalog["datasets"]:
+            bundle_path = REPO / "apps/fruitsim_unity/Assets/WebGLTemplates/FruitsimDemo" / dataset["bundle_url"]
+            self.assertTrue(bundle_path.is_file(), f"missing bundle {dataset['bundle_url']}")
+            bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+            self.assertEqual(bundle["dataset_id"], dataset["dataset_id"])
+            self.assertEqual(bundle["source"]["profile"], dataset["profile"])
+            self.assertEqual(bundle["source"]["source_type"], "SYNTHETIC_TEACHING")
+            self.assertTrue(bundle["source"]["synthetic"])
+            self.assertEqual(
+                set(bundle["stages"]),
+                {"data_inspection", "preprocessing", "feature_analysis", "feature_selection", "modeling", "results"},
+            )
 
 
 if __name__ == "__main__":

@@ -8,8 +8,11 @@
 
 ## 正式入口（本层）
 
-- `build_unity.sh linux` / `build_unity.sh webgl`：共用 Unity 构建入口；可用
-  `UNITY_BIN` 指定 Unity 构建启动器。
+- `build_unity.sh linux` / `build_unity.sh webgl`：共用 Unity 构建入口。它会自动在 Unity Hub
+  目录中查找 `ProjectSettings/ProjectVersion.txt` 指定的编辑器版本，检查 WebGL Build Support，
+  并可用 `UNITY_BIN` 覆盖。`webgl` 会先校验静态资源、构建后注入教学页面并再次校验发布目录。
+- `verify_web_teaching_assets.py`：校验目录 JSON、每个数据集 bundle、页面图像与 Unity loader
+  的真实引用；`--build-root` 校验发布目录，`--http-base` 校验已服务构建的 HTTP 响应。
 - `run_web_demo.sh` / `run_student_demo.sh` / `run_stage_acceptance.sh`：启动与验收。
 - `serve_webgl_demo.py`：带 gzip 与跨域头的静态 WebGL 服务。
 - `apply_webgl_demo_shell.py`：构建后确定性注入教学壳，由 WebGL 构建脚本调用。

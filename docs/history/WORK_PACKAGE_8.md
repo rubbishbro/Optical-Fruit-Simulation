@@ -14,7 +14,7 @@ used for known synthetic limitations; it is not silently promoted to a real-data
 claim.
 
 The student-facing end-to-end path is documented in
-[`STUDENT_QUICKSTART.md`](../STUDENT_QUICKSTART.md) and exposed through
+[`quickstart.md`](../quickstart.md) and exposed through
 `scripts/run_student_demo.sh` / `fruitsim-student`.
 
 For maintainers, the complete stage acceptance entry point is:

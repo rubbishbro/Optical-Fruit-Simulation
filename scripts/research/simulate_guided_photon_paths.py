@@ -485,8 +485,8 @@ def render(output: Path, vertices: np.ndarray, faces: np.ndarray, paths: dict[in
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mesh", type=Path, default=_RESULTS / "photon_paths_demo/outer_mesh.ply")
-    parser.add_argument("--config", type=Path, default=Path("configs/guided_mc_skin_flesh_core.json"))
-    parser.add_argument("--output-dir", type=Path, default=_RESULTS / "guided_mc_skin_flesh_core_ring")
+    parser.add_argument("--config", type=Path, default=Path("configs/guided_paths.json"))
+    parser.add_argument("--output-dir", type=Path, default=_RESULTS / "guided_paths_ring")
     args = parser.parse_args()
     config = json.loads(args.config.read_text(encoding="utf-8"))
     vertices, faces = read_ascii_ply(args.mesh)

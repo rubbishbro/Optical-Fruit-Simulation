@@ -26,8 +26,16 @@ def free_port() -> int:
 def main() -> int:
     web_root = Path(os.environ.get("FRUITSIM_BROWSER_ROOT", str(TEMPLATE))).resolve()
     port = free_port()
+    # Use the gzip-aware server so the same harness also works against a real
+    # Unity WebGL build, where .gz assets must be served with Content-Encoding.
     server = subprocess.Popen(
-        [sys.executable, "-m", "http.server", str(port), "--bind", "127.0.0.1", "--directory", str(web_root)],
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "serve_webgl_demo.py"),
+            "--root", str(web_root),
+            "--bind", "127.0.0.1",
+            "--port", str(port),
+        ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )

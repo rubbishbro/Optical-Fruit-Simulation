@@ -16,7 +16,7 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
       - name: Smoke simulation
-        run: ./build/apps/fruitsim_cli/fruitsim_cli run --config configs/golden_delicious_demo.json --photons 100 --threads 2 --output /tmp/fruitsim-ci
+        run: ./build/apps/fruitsim_cli/fruitsim_cli run --config configs/sphere_pencil.json --photons 100 --threads 2 --output /tmp/fruitsim-ci
 
   python:
     runs-on: ubuntu-latest
@@ -28,5 +28,36 @@ jobs:
       - name: Install Python package and visualization test dependencies
         run: pip install './python[visualize]'
       - run: fruitsim-ml generate-demo --output data/synthetic/synthetic_golden_delicious_smoke.csv --samples 80 --seed 42
-      - run: fruitsim-ml train --config configs/ml_smoke_test.json
+      - run: fruitsim-ml train --config configs/ml_smoke.json
       - run: python -m unittest discover -s python/tests -v
+
+  web-assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate committed WebGL teaching references (no Unity needed)
+        run: python scripts/verify_web_teaching_assets.py --require-catalog
+      - name: Node teaching and renderer contract tests
+        run: |
+          node scripts/tests/test_ml_teaching.js
+          node scripts/tests/test_ml_renderer.js
+      - name: Headless browser harness (google-chrome is preinstalled on ubuntu-latest)
+        run: python scripts/tests/test_ml_browser.py
+
+  # Runs only when a Unity-capable runner (self-hosted label or image) is configured,
+  # because GitHub-hosted runners do not ship the Unity editor or WebGL Build Support.
+  unity-webgl:
+    if: ${{ vars.FRUITSIM_UNITY_CI == 'true' }}
+    runs-on: ${{ vars.FRUITSIM_UNITY_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build WebGL demo, inject shell, verify publish directory
+        run: bash scripts/build_unity.sh webgl
+      - name: Verify published WebGL assets again
+        run: python3 scripts/verify_web_teaching_assets.py --build-root apps/fruitsim_unity/build/WebGL --require-catalog

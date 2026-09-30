@@ -14,7 +14,7 @@ class PhysicalRunTests(unittest.TestCase):
     def test_cpp_result_is_adapted_to_run_contract(self) -> None:
         root = Path(__file__).resolve().parents[2]
         binary = root / "build-mesh" / "apps" / "fruitsim_cli" / "fruitsim_cli"
-        config = root / "configs" / "ring_sensor_demo.json"
+        config = root / "configs" / "sphere_ring_detector.json"
         if not binary.is_file():
             self.skipTest("current C++ mesh build is not available")
         with tempfile.TemporaryDirectory() as directory:
@@ -38,7 +38,7 @@ class PhysicalRunTests(unittest.TestCase):
     def test_cpp_same_seed_is_byte_reproducible(self) -> None:
         root = Path(__file__).resolve().parents[2]
         binary = root / "build-mesh" / "apps" / "fruitsim_cli" / "fruitsim_cli"
-        config = root / "configs" / "ring_sensor_demo.json"
+        config = root / "configs" / "sphere_ring_detector.json"
         if not binary.is_file():
             self.skipTest("current C++ mesh build is not available")
         with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:

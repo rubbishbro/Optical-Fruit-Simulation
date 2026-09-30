@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source": "results/ml_golden_demo",
+  "source": "results/ml_train",
   "data_boundary": "synthetic demonstration; not a real-apple performance claim",
   "best": {
     "run_id": "combined__savgol__svr",

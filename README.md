@@ -6,7 +6,7 @@ synthetic and is **not valid for real SSC prediction**.
 
 ## Repository map
 
-Start with [`docs/REPOSITORY_MAP.md`](docs/REPOSITORY_MAP.md) for the directory responsibilities,
+Start with [`docs/architecture.md`](docs/architecture.md) for the directory responsibilities,
 stable C++ interfaces, current geometry boundary, CLI/ML data flow and the parts that are still
 planned rather than implemented. [`GUIDE.md`](docs/GUIDE.md) contains the full engineering guide and
 [`docs/TECHNICAL_CHAIN.md`](docs/TECHNICAL_CHAIN.md) contains the file-level physical chain.
@@ -27,19 +27,20 @@ The first configure downloads pinned nlohmann/json 3.12.0. CUDA and the GUI are 
 point clouds in Zenodo record 15635995. It produces reproducible closed random meshes through the
 Python and C++ `StatisticalFujiShape` implementations. The source record does not identify cultivar,
 so the requested Fuji label remains explicitly unverified. See
-[`docs/STATISTICAL_FUJI_SHAPE.md`](docs/STATISTICAL_FUJI_SHAPE.md) for download, training, sampling,
-license and modelling limitations. The current Monte Carlo kernel still uses `LayeredSphere`; mesh
-transport and 3D GUI rendering are subsequent stages.
+[`docs/shape-model.md`](docs/shape-model.md) for download, training, sampling,
+license and modelling limitations. The Monte Carlo kernel supports the analytic `LayeredSphere` on
+CPU/CUDA and, via `configs/mesh_pencil_detector.json`, CPU reference transport on a sampled
+statistical triangle mesh; the 3D GUI mesh viewport is still a subsequent stage.
 
 ## Run the apple simulation
 
 ```bash
 ./build/apps/fruitsim_cli/fruitsim_cli validate \
-  --config configs/golden_delicious_demo.json
+  --config configs/sphere_pencil.json
 
 ./build/apps/fruitsim_cli/fruitsim_cli run \
-  --config configs/golden_delicious_demo.json \
-  --output results/golden_delicious_demo
+  --config configs/sphere_pencil.json \
+  --output results/sphere_pencil
 ```
 
 Outputs include `summary.csv`, radial `detectors.csv`, instrument `instrument.csv`, generic
@@ -59,11 +60,11 @@ ring illumination -> layered skin/flesh transport -> surface escape
 
 ```bash
 ./build/apps/fruitsim_cli/fruitsim_cli run \
-  --config configs/ring_sensor_demo.json \
-  --output results/ring_sensor_demo --photons 20000 --backend cpu
+  --config configs/sphere_ring_detector.json \
+  --output results/sphere_ring_detector --photons 20000 --backend cpu
 
 ./build/apps/fruitsim_cli/fruitsim_cli scan-ring \
-  --config configs/ring_sensor_demo.json \
+  --config configs/sphere_ring_detector.json \
   --ring-radii 1,2,3,5,8,10,12,15 \
   --output results/ring_radius_scan --photons 10000 --backend cpu
 ```
@@ -81,7 +82,7 @@ are detector-arrival-weighted, with generic per-region output plus skin/flesh co
 All bundled instrument dimensions and optical properties are simulation assumptions, not calibrated
 hardware data.
 
-For reproducible CPU/CUDA throughput measurements, use `configs/ring_sensor_benchmark.json` with
+For reproducible CPU/CUDA throughput measurements, use `configs/bench_ring_detector.json` with
 `--photons 20000`, `100000`, and `1000000`. Each result records wavelength count, total photons,
 elapsed seconds and photons/s in `performance.csv` and `manifest.json`; no device runtime is assumed.
 
@@ -95,11 +96,11 @@ PYTHONPATH=python python -m fruitsim_ml generate-demo \
   --samples 600 --seed 20260819
 
 PYTHONPATH=python python -m fruitsim_ml train \
-  --config configs/ml_golden_demo.json
+  --config configs/ml_train.json
 ```
 
 Training emits JSONL progress and writes a leaderboard, predictions, split assignments, metrics,
-feature schema and serialized pipelines under `results/ml_golden_demo`.
+feature schema and serialized pipelines under `results/ml_train`.
 
 ## Optional components
 
@@ -113,7 +114,7 @@ cmake -S . -B build-cuda \
 cmake --build build-cuda --parallel
 ctest --test-dir build-cuda --output-on-failure
 ./build-cuda/apps/fruitsim_cli/fruitsim_cli run \
-  --config configs/ring_sensor_demo.json \
+  --config configs/sphere_ring_detector.json \
   --output results/ring_sensor_cuda --photons 2000 --backend cuda
 ```
 

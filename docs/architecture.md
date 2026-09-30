@@ -52,8 +52,8 @@ fruitsim_cli / fruitsim_gui
 ```
 
 - `core`：`Vec3`、`Ray`、单位基础类型、Philox 计数型随机数。
-- `geometry`：当前生产 transport 使用 `LayeredSphere`；`StatisticalFujiShape` 目前是形状数据和
-  网格表示，不是三角网格求交后端。
+- `geometry`：解析 `LayeredSphere` 用于生产 transport；`StatisticalFujiShape` 提供形状数据和
+  网格表示，`MeshGeometry` 提供 CPU reference 的闭合三角网格求交（外层 + 径向内缩内层）。
 - `optics`：光学参数校验、HG、Snell 和非偏振 Fresnel。
 - `transport`：不可变 `SimulationProblem`、`PhotonState`、MC 生命周期、R/T/A、detector 和路径统计。
 - `runtime`：CPU batch 调度和可选 CUDA backend 的运行适配。
@@ -67,16 +67,17 @@ fruitsim_cli / fruitsim_gui
 
 ```text
 LayeredSphere
-  └── 当前 CPU/CUDA photon boundary 和 Fresnel 的实际几何
+  └── CPU/CUDA photon boundary 和 Fresnel 的解析几何
 
-StatisticalFujiShape
+StatisticalFujiShape + MeshGeometry
   └── Zenodo 点云学习的平均径向形状/PCA 随机网格
-      └── 当前可采样、验证、导出和显示
-      └── 尚未用于 Monte Carlo 三角网格求交
+      └── 可采样、验证、导出和显示
+      └── CPU reference transport 在闭合三角网格上求交（外层 + 径向内缩内层）
+          └── CUDA 网格后端尚未实现
 ```
 
-因此任何展示界面都应同时显示 `display_geometry` 和 `transport_geometry`，避免用户把随机
-苹果网格误认为光子已经在其内部传播。
+展示界面应同时显示 `display_geometry` 和 `transport_geometry`；只有 `configs/mesh_pencil_detector.json`
+这类 `domain.type=statistical_mesh` 的运行才让光子在网格内部传播。
 
 ## 5. 配置到结果的入口
 
@@ -93,11 +94,13 @@ configs/*.json
 
 当前主要配置：
 
-- `golden_delicious_demo.json`：总反射/透射基础 demo。
-- `ring_sensor_demo.json`：环形光源 + 中央圆形 detector。
-- `ring_sensor_benchmark.json`：20k/100k/1M 光子吞吐测试。
-- `refractive_mismatch_validation.json`：界面 Fresnel 验证。
-- `ml_*.json`：Python SSC 组合实验。
+- `sphere_pencil.json`：总反射/透射基础 demo。
+- `sphere_ring_detector.json`：环形光源 + 中央圆形 detector。
+- `bench_ring_detector.json`：20k/100k/1M 光子吞吐测试。
+- `mesh_pencil_detector.json`：统计三角网格上的 CPU reference transport。
+- `fresnel_check.json`：界面 Fresnel 验证。
+- `guided_paths.json`：研究脚本（`scripts/research/`）使用的引导路径配置，格式与 CLI 仿真配置不同。
+- `ml_train.json` / `ml_smoke.json` / `ml_group_smoke.json`：Python SSC 训练、冒烟与分组冒烟实验。
 
 ML：
 
@@ -157,13 +160,16 @@ C++ detector 输出；`SimulationResult → ML dataset` 适配器尚未完成。
 cmake --build build-cuda --parallel
 ctest --test-dir build-cuda --output-on-failure
 
-mamba run -n mamba-torch311 \
-  env PYTHONPATH=python python -m unittest discover \
+env PYTHONPATH=python python -m unittest discover \
   -s python/tests -p 'test_*.py' -v
 
-mamba run -n mamba-torch311 \
-  env PYTHONPATH=python python -m fruitsim_ml train \
-  --config configs/ml_smoke_test.json
+env PYTHONPATH=python python -m fruitsim_ml train \
+  --config configs/ml_smoke.json
+
+python scripts/verify_web_teaching_assets.py --require-catalog
+node scripts/tests/test_ml_teaching.js
+node scripts/tests/test_ml_renderer.js
+python scripts/tests/test_ml_browser.py
 ```
 
 CUDA 测试在没有可见设备时应报告 skip，而不是伪造 GPU 结果。合成 ML 结果只能验证软件

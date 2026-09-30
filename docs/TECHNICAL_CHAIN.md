@@ -63,8 +63,8 @@ JSON 由 [`src/io/config_loader.cpp`](../src/io/config_loader.cpp) 解析。当�
 - `transport_mode` 当前只能为 `scalar`。偏振未来使用独立状态和内核，不扩大标量光子的状态。
 - 所有材料参数从配置读取；物理公式中不隐藏苹果专用常数。
 
-当前默认苹果配置 [`configs/golden_delicious_demo.json`](../configs/golden_delicious_demo.json)
-和仪器配置 [`configs/ring_sensor_demo.json`](../configs/ring_sensor_demo.json) 使用同心两层解析球：
+当前默认苹果配置 [`configs/sphere_pencil.json`](../configs/sphere_pencil.json)
+和仪器配置 [`configs/sphere_ring_detector.json`](../configs/sphere_ring_detector.json) 使用同心两层解析球：
 flesh 外半径 39 mm、skin 外半径 40 mm，外部空气折射率为 1.0。`LayeredSphere` 仍允许配置
 core 或更多层，现有折射率验证和测试继续覆盖三层结构。组织的 `g=0.90`、`n=1.36` 和当前
 光学曲线均标记为 `synthetic_assumption`。默认总反射 demo 使用 500–1000 nm、50 nm 间隔的

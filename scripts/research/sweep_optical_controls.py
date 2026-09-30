@@ -167,7 +167,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--mesh", type=Path, default=_RESULTS / "photon_paths_demo/outer_mesh.ply")
-    parser.add_argument("--config", type=Path, default=Path("configs/guided_mc_skin_flesh_core.json"))
+    parser.add_argument("--config", type=Path, default=Path("configs/guided_paths.json"))
     parser.add_argument("--output-dir", type=Path, default=Path("tmp/causal_comparisons_sweep"))
     parser.add_argument("--workers", type=int, default=3)
     parser.add_argument("--ring-values", default="4,6,8,10,12")

@@ -58,10 +58,8 @@ unzip data/external/zenodo_15635995/LabDataset.zip \
 使用 Python 3.11 环境训练 2048 个表面方向和 8 个 PCA modes：
 
 ```bash
-cd /home/rubbishbro/desktop/simulator
-
 env PYTHONNOUSERSITE=1 PYTHONPATH=python \
-  /home/rubbishbro/miniforge3/envs/mamba-torch311/bin/python \
+  python \
   -m fruitsim_shape train \
   --input-dir data/external/zenodo_15635995/LabDataset \
   --output data/shape_models/generated/statistical_fuji_shape_v1.json \
@@ -80,7 +78,7 @@ PCA eigenvalues/deformations、explained variance 和三角形 topology。
 
 ```bash
 env PYTHONNOUSERSITE=1 PYTHONPATH=python \
-  /home/rubbishbro/miniforge3/envs/mamba-torch311/bin/python \
+  python \
   -m fruitsim_shape sample \
   --model data/shape_models/statistical_fuji_shape_zenodo_v1.json \
   --output results/shapes/random_apple_seed_42.ply \
@@ -96,7 +94,7 @@ env PYTHONNOUSERSITE=1 PYTHONPATH=python \
 1 mm skin inset 检查，导出 PLY，并打开可旋转缩放的 Matplotlib 3D 窗口：
 
 ```bash
-/home/rubbishbro/miniforge3/envs/mamba-torch311/bin/python \
+python \
   scripts/figures/random_apple_3d_demo.py \
   --seed 42 --sample-id 0 --modes 8 --sigma-clip 3 \
   --skin-thickness-mm 1 \

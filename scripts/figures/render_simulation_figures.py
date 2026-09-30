@@ -183,7 +183,7 @@ def render_spectrum(summary: pd.DataFrame, instrument: pd.DataFrame, output: Pat
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", type=Path, default=ROOT / "results" / "golden_delicious_demo",
+    parser.add_argument("--input", type=Path, default=ROOT / "results" / "sphere_pencil",
                         help="fruitsim result directory containing CSV outputs")
     parser.add_argument("--output", type=Path, default=ROOT / "assets/figures",
                         help="directory for rendered PNGs")

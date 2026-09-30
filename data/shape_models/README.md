@@ -2,7 +2,7 @@
 
 Committed or generated statistical apple-shape models use the versioned
 `StatisticalFujiShape` JSON schema documented in
-[`docs/STATISTICAL_FUJI_SHAPE.md`](../../docs/STATISTICAL_FUJI_SHAPE.md).
+[`docs/shape-model.md`](../../docs/shape-model.md).
 
 `generated/` is ignored because local experiments may use different point-cloud subsets and PCA
 settings. A promoted model must record its complete Zenodo provenance, archive checksum, sample list,

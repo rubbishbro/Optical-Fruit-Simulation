@@ -159,7 +159,7 @@ def main() -> None:
     parser.add_argument("--mesh", type=Path, default=None,
                         help="ASCII outer mesh PLY exported by a mesh transport run")
     parser.add_argument("--trajectories", type=Path,
-                        default=ROOT / "results/golden_delicious_demo/trajectories.csv")
+                        default=ROOT / "results/sphere_pencil/trajectories.csv")
     parser.add_argument("--output", type=Path,
                         default=ROOT / "assets/figures/trajectories_on_real_apple.png")
     parser.add_argument("--seed", type=int, default=42)

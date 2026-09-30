@@ -17,7 +17,7 @@ Example:
 ```bash
 PYTHONPATH=python python -m fruitsim_pipeline simulate-physical \
   --binary build-mesh/apps/fruitsim_cli/fruitsim_cli \
-  --config configs/ring_sensor_demo.json \
+  --config configs/sphere_ring_detector.json \
   --output-root results/runs \
   --run-id physical_ring_demo \
   --photons 256 --seed 20260919 --threads 1 --backend cpu
